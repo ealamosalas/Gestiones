@@ -1,6 +1,0 @@
-{
-  // Publica la carpeta public/ como sitio estático en Cloudflare.
-  "name": "gestion-financiera",
-  "compatibility_date": "2026-01-01",
-  "assets": { "directory": "./public" }
-}
