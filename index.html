@@ -300,6 +300,11 @@ section { display: flex; flex-direction: column; gap: 12px; }
     <span id="sync-estado" role="status">Toma tus comprobantes de Servipag y tus recibos de Google Play desde Gmail y los anota como gastos.</span>
     <button type="button" class="btn chico" id="sync-btn">Sincronizar</button>
   </div>
+  <p class="nota" id="drive-estado" role="status" hidden></p>
+  <form class="linea-form" id="drive-form" hidden novalidate>
+    <div class="ancho2"><label class="label" for="drive-clave">Contraseña del libro guardado en Drive</label><input class="field" type="password" id="drive-clave" autocomplete="current-password" maxlength="200"></div>
+    <button class="btn primary" type="submit">Abrir libro de Drive</button>
+  </form>
 
   <form class="nuevo" id="nuevo" novalidate>
     <fieldset class="tipos" id="tipos"><legend class="label" id="f-leyenda" style="padding:0;margin-bottom:6px">Nuevo movimiento</legend></fieldset>
@@ -1166,7 +1171,7 @@ section { display: flex; flex-direction: column; gap: 12px; }
   let descargas = null;
   function pintarRespaldo() {
     if (vista !== "respaldo") return;
-    $("rs-cuenta").textContent = !cargado ? "Cargando tu libro…" : "Tu libro tiene " + movs.length + " movimientos, " + progs.length + " fijos o compras en cuotas, " + metas.length + " metas y " + Object.keys(ajustes.presupuestos || {}).length + " topes de presupuesto." + (window.claude ? "" : " Todo se guarda cifrado en este navegador de este computador: exporta un respaldo de vez en cuando y úsalo para llevar tus datos a otro equipo. El archivo de respaldo no va cifrado, así que guárdalo en un lugar seguro.");
+    $("rs-cuenta").textContent = !cargado ? "Cargando tu libro…" : "Tu libro tiene " + movs.length + " movimientos, " + progs.length + " fijos o compras en cuotas, " + metas.length + " metas y " + Object.keys(ajustes.presupuestos || {}).length + " topes de presupuesto." + (window.claude ? "" : " Todo se guarda cifrado en este navegador de este computador: si conectas Google en Movimientos, también queda una copia cifrada en tu Drive y se sincroniza entre equipos. Exporta un respaldo de vez en cuando. El archivo de respaldo no va cifrado, así que guárdalo en un lugar seguro.");
   }
   $("rs-exp").onclick = () => {
     const est = $("rs-estado"), nombre = "libro-de-cuentas-" + HOY + ".json";
@@ -1390,9 +1395,11 @@ section { display: flex; flex-direction: column; gap: 12px; }
     const cid = ((window.LIBRO_CONFIG || {}).googleClientId || "").trim();
     const estado = $("sync-estado"), boton = $("sync-btn");
     $("sync").hidden = false;
+    $("sync").querySelector("strong").textContent = "Google";
     if (location.protocol === "file:") { estado.textContent = "Para leer tus comprobantes desde Gmail abre esta aplicación desde su dirección web (https). Google no permite iniciar sesión desde un archivo."; boton.hidden = true; return; }
     if (!cid) { estado.textContent = "Para leer tus comprobantes desde Gmail falta poner el identificador de cliente de Google en el archivo config.js."; boton.hidden = true; return; }
-    boton.textContent = "Conectar Gmail";
+    boton.textContent = "Conectar Google";
+    estado.textContent = "Conecta tu cuenta de Google para guardar tu libro en tu Drive y leer tus comprobantes de Servipag y Google Play desde Gmail.";
     const gsi = document.createElement("script"); gsi.src = "https://accounts.google.com/gsi/client"; gsi.async = true; document.head.append(gsi);
     let token = "", vence = 0, cliente = null;
     const api = async (ruta) => {
@@ -1428,20 +1435,91 @@ section { display: flex; flex-direction: column; gap: 12px; }
       guardarMarca: async (clave, m) => { marcasLocal = Object.assign({}, marcasLocal, { [clave]: m }); return store.ajustes(); },
       poner: (id, d) => store.poner(id, d)
     }, (e) => {
-      if (e && e.g === "sesion") { token = ""; boton.textContent = "Conectar Gmail"; return "La sesión de Google venció. Pulsa Conectar Gmail para seguir."; }
+      if (e && e.g === "sesion") { token = ""; boton.textContent = "Conectar Google"; return "La sesión de Google venció. Pulsa Conectar Google para seguir."; }
       if (e && e.g === "permiso") return "Google no permitió leer el correo. Revisa que la API de Gmail esté activada en tu proyecto de Google Cloud y que tu cuenta esté en la lista de usuarios de prueba.";
       return "No se pudo leer Gmail ahora. Revisa tu conexión e inténtalo de nuevo.";
     });
+    /* ----- Google Drive: el libro cifrado se guarda en la carpeta privada de la aplicación ----- */
+    const ALC_GMAIL = "https://www.googleapis.com/auth/gmail.readonly", ALC_DRIVE = "https://www.googleapis.com/auth/drive.appdata";
+    const DRIVE = "https://www.googleapis.com/drive/v3/files", SUBIR = "https://www.googleapis.com/upload/drive/v3/files", ARCHIVO = "libro-de-cuentas.json";
+    const dEstado = $("drive-estado"), dForm = $("drive-form");
+    let conDrive = false, conGmail = false, idArchivo = null, enDrive = false, otraVez = false, reloj = null;
+    const gfetch = async (url, opt) => {
+      const r = await fetch(url, Object.assign({}, opt, { headers: Object.assign({ Authorization: "Bearer " + token }, (opt || {}).headers) }));
+      if (r.status === 401) throw { g: "sesion" };
+      if (r.status === 403) throw { g: "permiso" };
+      if (!r.ok) throw { g: "red" };
+      return r;
+    };
+    const bajar = async () => {
+      if (!idArchivo) { const l = await (await gfetch(DRIVE + "?spaces=appDataFolder&fields=" + encodeURIComponent("files(id)") + "&q=" + encodeURIComponent("name='" + ARCHIVO + "'"))).json(); idArchivo = l.files && l.files[0] ? l.files[0].id : null; }
+      return idArchivo ? (await gfetch(DRIVE + "/" + encodeURIComponent(idArchivo) + "?alt=media")).json() : null;
+    };
+    const subir = async (caja) => {
+      const cuerpo = JSON.stringify(caja);
+      if (idArchivo) { await gfetch(SUBIR + "/" + encodeURIComponent(idArchivo) + "?uploadType=media", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: cuerpo }); return; }
+      const lim = "libro" + Date.now();
+      const multi = "--" + lim + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify({ name: ARCHIVO, parents: ["appDataFolder"] }) + "\r\n--" + lim + "\r\nContent-Type: application/json\r\n\r\n" + cuerpo + "\r\n--" + lim + "--";
+      idArchivo = (await (await gfetch(SUBIR + "?uploadType=multipart&fields=id", { method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + lim }, body: multi })).json()).id;
+    };
+    /* El libro de Drive se cifró en otro equipo con otra sal: se pide la contraseña y este navegador adopta esa clave. */
+    const abrirConClave = (remoto) => new Promise((ok) => {
+      dForm.hidden = false; dEstado.hidden = false;
+      dEstado.textContent = "Hay un libro guardado en tu Drive desde otro equipo. Escribe la contraseña con la que lo creaste para unirlo con este.";
+      $("drive-clave").focus();
+      dForm.onsubmit = async (ev) => {
+        ev.preventDefault();
+        try {
+          const k = await derivar($("drive-clave").value, b64d(remoto.sal), remoto.iter || ITER), datos = await descifrar(k, remoto);
+          const lista = leerUsuarios(); lista[sesion.usuario] = Object.assign({}, lista[sesion.usuario], { sal: remoto.sal, iter: remoto.iter || ITER });
+          localStorage.setItem(LS_USUARIOS, JSON.stringify(lista));
+          sesion.clave = k;
+          crypto.subtle.exportKey("jwk", k).then((jwk) => { try { sessionStorage.setItem(SS_SESION, JSON.stringify({ u: sesion.usuario, k: jwk })); } catch (e) {} }).catch(() => {});
+          $("drive-clave").value = ""; dForm.hidden = true; ok(datos);
+        } catch (e) { dEstado.textContent = "Esa contraseña no abre el libro guardado en Drive. Prueba con la que usaste en el equipo donde lo creaste."; $("drive-clave").select(); }
+      };
+    });
+    async function sincronizarDrive() {
+      if (!conDrive || !sesion) return;
+      if (enDrive) { otraVez = true; return; }
+      enDrive = true; dEstado.hidden = false;
+      try {
+        do {
+          otraVez = false;
+          const remoto = await bajar(), u = leerUsuarios()[sesion.usuario] || {};
+          let datosR = null;
+          if (remoto && remoto.ct) datosR = remoto.sal === u.sal ? await descifrar(sesion.clave, remoto).catch(() => null) : null;
+          if (remoto && remoto.ct && !datosR) datosR = await abrirConClave(remoto);
+          const local = store.volcar(), unido = datosR ? fusionar(local, datosR) : fusionar(local, {});
+          const canon = (d) => JSON.stringify(fusionar(d, {}));
+          if (datosR && canon(unido) !== canon(local)) store.cargar(unido); else if (dForm.hidden === true && datosR && remoto.sal !== u.sal) store.cargar(unido);
+          if (!datosR || canon(unido) !== canon(datosR)) { const yo = leerUsuarios()[sesion.usuario] || {}; await subir(Object.assign({ v: 1, sal: yo.sal, iter: yo.iter || ITER, actualizado: new Date().toISOString() }, await cifrar(sesion.clave, unido))); }
+        } while (otraVez);
+        dEstado.textContent = "Libro guardado en tu Google Drive · " + new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+      } catch (e) {
+        if (e && e.g === "sesion") { token = ""; boton.textContent = "Conectar Google"; dEstado.textContent = "La sesión de Google venció: los cambios quedan en este navegador. Pulsa Conectar Google para volver a guardar en Drive."; }
+        else if (e && e.g === "permiso") dEstado.textContent = "Google no permitió usar Drive. Revisa que la API de Google Drive esté activada en tu proyecto de Google Cloud.";
+        else dEstado.textContent = "No se pudo guardar en Drive ahora. Los cambios quedan en este navegador y se reintentará.";
+      }
+      enDrive = false;
+    }
+    store.alCambiar = () => { if (!conDrive || !token || Date.now() >= vence) return; clearTimeout(reloj); reloj = setTimeout(sincronizarDrive, 3000); };
+    const todo = async () => { await sincronizarDrive(); if (conGmail) await sincronizar(); else estado.textContent = "Conectado sin permiso de Gmail: los comprobantes no se leerán. Pulsa Conectar Google y marca el permiso de lectura de correo."; };
     boton.onclick = () => {
-      if (token && Date.now() < vence) { sincronizar(); return; }
+      if (token && Date.now() < vence) { todo(); return; }
       if (!(window.google && window.google.accounts && window.google.accounts.oauth2)) { estado.textContent = "No se pudo cargar el inicio de sesión de Google. Revisa tu conexión o desactiva el bloqueador de anuncios e inténtalo de nuevo."; return; }
       if (!cliente) cliente = window.google.accounts.oauth2.initTokenClient({
-        client_id: cid, scope: "https://www.googleapis.com/auth/gmail.readonly",
+        client_id: cid, scope: ALC_GMAIL + " " + ALC_DRIVE,
         callback: (r) => {
-          if (r && r.access_token) { token = r.access_token; vence = Date.now() + ((Number(r.expires_in) || 3600) - 60) * 1000; boton.textContent = "Sincronizar"; sincronizar(); }
-          else estado.textContent = "No se conectó Gmail porque no se dio el permiso de lectura.";
+          if (r && r.access_token) {
+            const tiene = (a) => { try { return window.google.accounts.oauth2.hasGrantedAllScopes(r, a); } catch (e) { return String(r.scope || "").indexOf(a) > -1; } };
+            token = r.access_token; vence = Date.now() + ((Number(r.expires_in) || 3600) - 60) * 1000; conGmail = tiene(ALC_GMAIL); conDrive = tiene(ALC_DRIVE);
+            boton.textContent = "Sincronizar";
+            if (!conDrive) { dEstado.hidden = false; dEstado.textContent = "Conectado sin permiso de Drive: el libro se guarda solo en este navegador. Pulsa Conectar Google y marca el permiso de Drive para guardarlo en la nube."; }
+            todo();
+          } else estado.textContent = "No se conectó Google porque no se dieron los permisos.";
         },
-        error_callback: () => { estado.textContent = "Se cerró la ventana de Google antes de terminar. Pulsa Conectar Gmail para intentarlo de nuevo."; }
+        error_callback: () => { estado.textContent = "Se cerró la ventana de Google antes de terminar. Pulsa Conectar Google para intentarlo de nuevo."; }
       });
       cliente.requestAccessToken({ prompt: "" });
     };
@@ -1530,37 +1608,69 @@ section { display: flex; flex-direction: column; gap: 12px; }
   }
 
   /* ---------- almacenamiento ---------- */
+  /* Une dos copias del libro (este navegador y Drive): por cada registro gana la versión más reciente,
+     y lo borrado en una copia queda borrado en la otra. */
+  function fusionar(a, b) {
+    a = a || {}; b = b || {};
+    const tumbas = Object.assign({}, b.borrados || {});
+    Object.keys(a.borrados || {}).forEach((k) => { if (!(tumbas[k] > a.borrados[k])) tumbas[k] = a.borrados[k]; });
+    const lista = (x, y) => {
+      const m = new Map();
+      (y || []).concat(x || []).forEach((r) => { if (!r || !r.id) return; const p = m.get(r.id); if (!p || (r.mod || "") > (p.mod || "")) m.set(r.id, r); });
+      return Array.from(m.values()).filter((r) => !(tumbas[r.id] && tumbas[r.id] >= (r.mod || ""))).sort((p, q) => (p.id < q.id ? -1 : 1));
+    };
+    const sync = {};
+    Array.from(new Set(Object.keys(a.sync || {}).concat(Object.keys(b.sync || {})))).sort().forEach((k) => {
+      const x = (a.sync || {})[k] || {}, y = (b.sync || {})[k] || {}, une = (p, q) => Array.from(new Set((p || []).concat(q || []))).sort();
+      sync[k] = { importados: une(x.importados, y.importados), mensajes: une(x.mensajes, y.mensajes), desde: x.desde || y.desde || null, ultimaFecha: (x.ultimaFecha || "") > (y.ultimaFecha || "") ? x.ultimaFecha : y.ultimaFecha || x.ultimaFecha || null };
+    });
+    const aj = !b.ajustes ? a.ajustes : !a.ajustes ? b.ajustes : ((a.ajustes.mod || "") >= (b.ajustes.mod || "") ? a.ajustes : b.ajustes);
+    return { movs: lista(a.movs, b.movs), progs: lista(a.progs, b.progs), metas: lista(a.metas, b.metas), ajustes: aj || {}, sync, borrados: tumbas };
+  }
   function storeLocal() {
-    try { const g = sesion ? sesion.datos : JSON.parse(localStorage.getItem(LS) || "null"); if (g) { movs = g.movs || []; progs = g.progs || []; metas = g.metas || []; marcasLocal = g.sync || {}; ajustes = Object.assign(ajustes, g.ajustes || {}); } } catch (e) {}
+    let borrados = {};
+    const leer = (g) => { movs = g.movs || []; progs = g.progs || []; metas = g.metas || []; marcasLocal = g.sync || {}; borrados = g.borrados || {}; ajustes = Object.assign({}, ajustes, g.ajustes || {}); };
+    try { const g = sesion ? sesion.datos : JSON.parse(localStorage.getItem(LS) || "null"); if (g) leer(g); } catch (e) {}
     let colaLocal = Promise.resolve();
-    const guardar = () => {
-      const datos = { movs, progs, metas, ajustes, sync: marcasLocal };
+    const volcar = () => ({ movs, progs, metas, ajustes, sync: marcasLocal, borrados });
+    const api = {};
+    const guardar = (callado) => {
+      const datos = volcar();
       if (sesion) colaLocal = colaLocal.then(() => cifrar(sesion.clave, datos)).then((caja) => { localStorage.setItem(LS_DATOS + sesion.usuario, JSON.stringify(caja)); }).catch(() => { avisoFijo = "No se pudo guardar en este navegador. Exporta un respaldo para no perder los cambios."; pintarAviso(); });
       else { try { localStorage.setItem(LS, JSON.stringify(datos)); } catch (e) {} }
       render();
+      if (!callado && api.alCambiar) api.alCambiar();
     };
+    const hecho = () => { guardar(); return Promise.resolve(); };
+    const sello = () => new Date().toISOString();
+    const nuevoId = (pre) => pre + Date.now() + Math.random().toString(36).slice(2, 7);
+    const tumba = (id) => { borrados = Object.assign({}, borrados, { [id]: sello() }); };
+    const cambia = (arr, id, c) => arr.map((x) => (x.id === id ? Object.assign({}, x, c, { mod: sello() }) : x));
     avisoFijo = window.claude ? "Este libro se guarda solo en este navegador. Inicia sesión en claude.ai para guardarlo en tu cuenta." : "";
     cargado = true;
-    return {
-      agregar: (d) => { movs = movs.concat([Object.assign({ id: "l" + Date.now() + Math.random().toString(36).slice(2, 7) }, d)]); guardar(); return Promise.resolve(); },
-      borrar: (id) => { movs = movs.filter((m) => m.id !== id); guardar(); return Promise.resolve(); },
-      cambiar: (id, c) => { movs = movs.map((m) => (m.id === id ? Object.assign({}, m, c) : m)); guardar(); return Promise.resolve(); },
-      poner: (id, d) => { const x = Object.assign({ id }, d); movs = movs.some((m) => m.id === id) ? movs.map((m) => (m.id === id ? x : m)) : movs.concat([x]); guardar(); return Promise.resolve(); },
-      agregarMeta: (d) => { metas = metas.concat([Object.assign({ id: "m" + Date.now() + Math.random().toString(36).slice(2, 7) }, d)]); guardar(); return Promise.resolve(); },
-      cambiarMeta: (id, c) => { metas = metas.map((x) => (x.id === id ? Object.assign({}, x, c) : x)); guardar(); return Promise.resolve(); },
-      borrarMeta: (id) => { metas = metas.filter((x) => x.id !== id); guardar(); return Promise.resolve(); },
+    return Object.assign(api, {
+      volcar,
+      cargar: (d) => { leer(d); guardar(true); },
+      agregar: (d) => { movs = movs.concat([Object.assign({ id: nuevoId("l"), mod: sello() }, d)]); return hecho(); },
+      borrar: (id) => { movs = movs.filter((m) => m.id !== id); tumba(id); return hecho(); },
+      cambiar: (id, c) => { movs = cambia(movs, id, c); return hecho(); },
+      poner: (id, d) => { const x = Object.assign({ id, mod: sello() }, d); movs = movs.some((m) => m.id === id) ? movs.map((m) => (m.id === id ? x : m)) : movs.concat([x]); return hecho(); },
+      agregarMeta: (d) => { metas = metas.concat([Object.assign({ id: nuevoId("m"), mod: sello() }, d)]); return hecho(); },
+      cambiarMeta: (id, c) => { metas = cambia(metas, id, c); return hecho(); },
+      borrarMeta: (id) => { metas = metas.filter((x) => x.id !== id); tumba(id); return hecho(); },
       importar: (d) => {
         let n = 0;
-        const unir = (actual, nuevo, pre) => { const ids = new Set(actual.map((x) => x.id)); const mas = nuevo.filter((x) => !(x.id && ids.has(x.id))).map((x, i) => Object.assign({}, x, { id: x.id || pre + Date.now() + "-" + i })); n += mas.length; return actual.concat(mas); };
+        const unir = (actual, nuevo, pre) => { const ids = new Set(actual.map((x) => x.id)); const mas = nuevo.filter((x) => !(x.id && ids.has(x.id))).map((x, i) => Object.assign({}, x, { id: x.id || pre + Date.now() + "-" + i, mod: sello() })); n += mas.length; return actual.concat(mas); };
         movs = unir(movs, d.movs, "l"); progs = unir(progs, d.progs, "r"); metas = unir(metas, d.metas, "m");
-        ajustes = Object.assign({}, ajustes, { presupuestos: Object.assign({}, d.presupuestos, ajustes.presupuestos || {}) });
+        const quita = Object.assign({}, borrados); movs.concat(progs, metas).forEach((x) => { delete quita[x.id]; }); borrados = quita;
+        ajustes = Object.assign({}, ajustes, { presupuestos: Object.assign({}, d.presupuestos, ajustes.presupuestos || {}), mod: sello() });
         guardar(); return Promise.resolve(n);
       },
-      agregarProg: (d) => { progs = progs.concat([Object.assign({ id: "r" + Date.now() + Math.random().toString(36).slice(2, 7) }, d)]); guardar(); return Promise.resolve(); },
-      cambiarProg: (id, c) => { progs = progs.map((p) => (p.id === id ? Object.assign({}, p, c) : p)); guardar(); return Promise.resolve(); },
-      borrarProg: (id) => { progs = progs.filter((p) => p.id !== id); guardar(); return Promise.resolve(); },
-      ajustes: () => { guardar(); return Promise.resolve(); }
-    };
+      agregarProg: (d) => { progs = progs.concat([Object.assign({ id: nuevoId("r"), mod: sello() }, d)]); return hecho(); },
+      cambiarProg: (id, c) => { progs = cambia(progs, id, c); return hecho(); },
+      borrarProg: (id) => { progs = progs.filter((p) => p.id !== id); tumba(id); return hecho(); },
+      ajustes: () => { ajustes = Object.assign({}, ajustes, { mod: sello() }); return hecho(); }
+    });
   }
   function storeRemoto(db, uid) {
     const col = db.doc("data/users/" + uid + "/libro").collection("movimientos");

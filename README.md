@@ -24,7 +24,14 @@ La contraseña protege los datos, no la página: cualquiera puede abrir la direc
 
 ## Dónde quedan los datos
 
-En el navegador de cada computador (almacenamiento local), cifrados. No se envían a ningún servidor y este repositorio no contiene datos de nadie. Para pasar el libro a otro equipo, usa **Respaldo → Exportar**, crea tu usuario en el otro equipo y usa **Importar**. El archivo de respaldo no va cifrado: guárdalo en un lugar seguro.
+- **En el navegador de cada computador**, cifrados con tu contraseña.
+- **En tu Google Drive (opcional):** al pulsar **Conectar Google**, el mismo libro cifrado se guarda en la carpeta privada que Drive reserva para esta aplicación. No aparece entre tus archivos y ninguna otra aplicación puede leerlo. Con eso, el libro se sincroniza entre los equipos donde conectes la misma cuenta de Google.
+
+Ni Google ni este repositorio pueden leer el contenido: sale cifrado del navegador. En un equipo nuevo, crea tu usuario, conecta Google y escribe la contraseña con la que creaste el libro para unirlo.
+
+Si editas el mismo libro en dos equipos, se conserva la versión más reciente de cada movimiento y lo borrado en uno se borra en el otro.
+
+Además puedes usar **Respaldo → Exportar** e **Importar**. El archivo de respaldo no va cifrado: guárdalo en un lugar seguro.
 
 ## Publicar con GitHub Pages
 
@@ -35,22 +42,22 @@ En el navegador de cada computador (almacenamiento local), cifrados. No se enví
 
 Con una cuenta gratuita de GitHub, Pages solo está disponible si el repositorio es público; con GitHub Pro también funciona en repositorios privados. En ambos casos el sitio publicado es visible para quien tenga el enlace. No expone datos: solo la aplicación vacía.
 
-## Conectar Gmail (una sola vez, gratis)
+## Conectar Google: Drive y Gmail (una sola vez, gratis)
 
-La lectura de Gmail necesita un identificador de cliente de Google asociado a tu cuenta.
+El guardado en Drive y la lectura de Gmail necesitan un identificador de cliente de Google asociado a tu cuenta.
 
 1. Entra a <https://console.cloud.google.com/> y crea un proyecto (por ejemplo, "Gestion Financiera").
-2. **APIs y servicios → Biblioteca**: busca **Gmail API** y actívala.
+2. **APIs y servicios → Biblioteca**: busca **Gmail API** y actívala; luego busca **Google Drive API** y actívala también.
 3. **APIs y servicios → Pantalla de consentimiento de OAuth**: tipo de usuario **Externo**, completa el nombre de la aplicación y tu correo, y deja el estado en **Prueba**.
 4. En esa misma pantalla, en **Usuarios de prueba**, agrega tu cuenta de Gmail y la de cada persona a la que quieras dar acceso (hasta 100).
 5. **APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth**: tipo **Aplicación web**. En **Orígenes de JavaScript autorizados** agrega `https://ealamosalas.github.io` (solo el dominio, sin la ruta del repositorio ni barra final).
 6. Copia el ID de cliente (termina en `.apps.googleusercontent.com`) y pégalo en `config.js`, en `googleClientId`.
 
-Al abrir la aplicación aparecerá el botón **Conectar Gmail**. Google mostrará el aviso "Google no ha verificado esta aplicación": es normal en modo de prueba; elige *Continuar*. El permiso es de solo lectura y dura una hora, así que cada día hay que pulsar el botón de nuevo.
+En la hoja Movimientos aparecerá el botón **Conectar Google**. Pide dos permisos: leer tu correo (solo lectura) y guardar datos propios de la aplicación en tu Drive (no da acceso a tus demás archivos). Google mostrará el aviso "Google no ha verificado esta aplicación": es normal en modo de prueba; elige *Continuar*. El permiso dura una hora, así que en cada sesión hay que pulsar el botón de nuevo. Mientras no esté conectado, los cambios quedan en el navegador y se suben en la siguiente conexión.
 
 Solo se importan correos desde el 1 de septiembre de 2026.
 
 ## Quién tiene acceso
 
-- **A leer su Gmail desde la aplicación:** las cuentas de la lista de usuarios de prueba (paso 4).
+- **A conectar su Google (Drive y Gmail) desde la aplicación:** las cuentas de la lista de usuarios de prueba (paso 4).
 - **Al código:** los colaboradores del repositorio (**Settings → Collaborators**).
