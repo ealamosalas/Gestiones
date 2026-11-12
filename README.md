@@ -19,7 +19,7 @@ En el navegador de cada computador (almacenamiento local). No se envían a ning�
 1. En el repositorio: **Settings → Pages**.
 2. En *Build and deployment → Source*, elige **Deploy from a branch**.
 3. En *Branch*, elige la rama que contiene `index.html` y la carpeta `/ (root)`, y pulsa **Save**.
-4. En uno o dos minutos la aplicación queda en `https://ealamosalas.github.io/Gestion-Financiera/`.
+4. En uno o dos minutos la aplicación queda en `https://ealamosalas.github.io/Gestiones/`.
 
 Con una cuenta gratuita de GitHub, Pages solo está disponible si el repositorio es público; con GitHub Pro también funciona en repositorios privados. En ambos casos el sitio publicado es visible para quien tenga el enlace. No expone datos: solo la aplicación vacía.
 
