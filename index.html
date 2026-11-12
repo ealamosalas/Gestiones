@@ -44,7 +44,16 @@ body { background: var(--bg); color: var(--ink); font-family: var(--body); font-
 .app { display: grid; grid-template-columns: 216px minmax(0, 1fr); align-items: start; }
 .lado { position: sticky; top: env(safe-area-inset-top, 0px); height: 100vh; background: var(--surface); border-right: 1px solid var(--line);
   padding-block: 26px 22px; padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: 14px; display: flex; flex-direction: column; gap: 22px; }
-.marca { font-family: var(--display); font-weight: 700; font-size: 19px; letter-spacing: -0.01em; padding: 0 12px; }
+.marca { font-family: var(--display); font-weight: 700; font-size: 19px; letter-spacing: -0.01em; padding: 0 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.marca .btn { font-family: var(--body); letter-spacing: 0; }
+.acceso { min-height: 100vh; display: grid; place-items: center; padding-block: 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.acceso form { width: 100%; max-width: 380px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 28px 26px; display: flex; flex-direction: column; gap: 14px; }
+.acceso h1 { font-size: 26px; }
+.acceso p { margin: 0; color: var(--muted); font-size: 14px; }
+.acceso .campo { display: flex; flex-direction: column; gap: 4px; }
+.acceso .btn.primary { padding-block: 10px; }
+.acceso .enlace { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; font-weight: 500; align-self: flex-start; }
 .menu { display: flex; flex-direction: column; gap: 2px; }
 .menu a { display: block; padding: 9px 12px; border-radius: 8px; color: var(--ink); text-decoration: none; font-weight: 500; white-space: nowrap; }
 .menu a:hover { background: var(--bg); }
@@ -233,9 +242,22 @@ section { display: flex; flex-direction: column; gap: 12px; }
 }
 </style>
 
-<div class="app">
+<div class="acceso" id="acceso" hidden>
+  <form id="ac-form" novalidate>
+    <h1>Libro de Cuentas</h1>
+    <p id="ac-texto"></p>
+    <div class="campo"><label class="label" for="ac-usuario">Usuario</label><input class="field" type="text" id="ac-usuario" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="30"></div>
+    <div class="campo"><label class="label" for="ac-clave">Contraseña</label><input class="field" type="password" id="ac-clave" autocomplete="current-password" maxlength="200"></div>
+    <div class="campo" id="ac-box2" hidden><label class="label" for="ac-clave2">Repite la contraseña</label><input class="field" type="password" id="ac-clave2" autocomplete="new-password" maxlength="200"></div>
+    <div class="error" id="ac-error" role="alert"></div>
+    <button class="btn primary" type="submit" id="ac-ok">Entrar</button>
+    <button class="enlace" type="button" id="ac-cambio"></button>
+    <p id="ac-nota"></p>
+  </form>
+</div>
+<div class="app" id="app">
 <nav class="lado" aria-label="Secciones">
-  <div class="marca">Libro de Cuentas</div>
+  <div class="marca"><span>Libro de Cuentas</span><button type="button" class="btn chico" id="salir" hidden>Salir</button></div>
   <div class="menu" id="menu">
     <a href="#mes" data-v="mes">Movimientos</a>
     <a href="#buscar" data-v="buscar">Buscar</a>
@@ -1144,7 +1166,7 @@ section { display: flex; flex-direction: column; gap: 12px; }
   let descargas = null;
   function pintarRespaldo() {
     if (vista !== "respaldo") return;
-    $("rs-cuenta").textContent = !cargado ? "Cargando tu libro…" : "Tu libro tiene " + movs.length + " movimientos, " + progs.length + " fijos o compras en cuotas, " + metas.length + " metas y " + Object.keys(ajustes.presupuestos || {}).length + " topes de presupuesto." + (window.claude ? "" : " Todo se guarda en este navegador de este computador: exporta un respaldo de vez en cuando y úsalo para llevar tus datos a otro equipo.");
+    $("rs-cuenta").textContent = !cargado ? "Cargando tu libro…" : "Tu libro tiene " + movs.length + " movimientos, " + progs.length + " fijos o compras en cuotas, " + metas.length + " metas y " + Object.keys(ajustes.presupuestos || {}).length + " topes de presupuesto." + (window.claude ? "" : " Todo se guarda cifrado en este navegador de este computador: exporta un respaldo de vez en cuando y úsalo para llevar tus datos a otro equipo. El archivo de respaldo no va cifrado, así que guárdalo en un lugar seguro.");
   }
   $("rs-exp").onclick = () => {
     const est = $("rs-estado"), nombre = "libro-de-cuentas-" + HOY + ".json";
@@ -1402,8 +1424,8 @@ section { display: flex; flex-direction: column; gap: 12px; }
         })((await api("messages/" + encodeURIComponent(id) + "?format=full")).payload);
         return r;
       },
-      marca: async (clave) => { try { return JSON.parse(localStorage.getItem(LS + "-sync-" + clave) || "null"); } catch (e) { return null; } },
-      guardarMarca: async (clave, m) => { try { localStorage.setItem(LS + "-sync-" + clave, JSON.stringify(m)); } catch (e) {} },
+      marca: async (clave) => marcasLocal[clave] || null,
+      guardarMarca: async (clave, m) => { marcasLocal = Object.assign({}, marcasLocal, { [clave]: m }); return store.ajustes(); },
       poner: (id, d) => store.poner(id, d)
     }, (e) => {
       if (e && e.g === "sesion") { token = ""; boton.textContent = "Conectar Gmail"; return "La sesión de Google venció. Pulsa Conectar Gmail para seguir."; }
@@ -1425,10 +1447,98 @@ section { display: flex; flex-direction: column; gap: 12px; }
     };
   }
 
+  /* ---------- acceso con usuario y contraseña (solo fuera de Claude) ----------
+     No hay servidor: cada usuario existe en este navegador y su libro se guarda cifrado con una
+     clave derivada de la contraseña (PBKDF2 + AES-GCM). Sin la contraseña los datos no se pueden leer. */
+  const LS_USUARIOS = "libro-usuarios-v1", LS_DATOS = "libro-datos-v1:", SS_SESION = "libro-sesion-v1", ITER = 600000;
+  let sesion = null, marcasLocal = {};
+  const b64e = (buf) => { const u = new Uint8Array(buf); let t = ""; for (let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(t); };
+  const b64d = (t) => Uint8Array.from(atob(t), (c) => c.charCodeAt(0));
+  async function derivar(clave, sal, iter) {
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(clave), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({ name: "PBKDF2", salt: sal, iterations: iter, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+  }
+  async function cifrar(clave, obj) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    return { iv: b64e(iv), ct: b64e(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, clave, new TextEncoder().encode(JSON.stringify(obj)))) };
+  }
+  async function descifrar(clave, caja) { return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64d(caja.iv) }, clave, b64d(caja.ct)))); }
+  const leerUsuarios = () => { try { return JSON.parse(localStorage.getItem(LS_USUARIOS) || "{}") || {}; } catch (e) { return {}; } };
+  function acceso() {
+    return new Promise((listo) => {
+      const caja = $("acceso"), err = $("ac-error");
+      const entrar = (usuario, nombre, clave, datos) => {
+        sesion = { usuario, nombre, clave, datos };
+        crypto.subtle.exportKey("jwk", clave).then((jwk) => { try { sessionStorage.setItem(SS_SESION, JSON.stringify({ u: usuario, k: jwk })); } catch (e) {} }).catch(() => {});
+        caja.hidden = true; $("app").hidden = false;
+        const b = $("salir"); b.hidden = false; b.textContent = "Salir"; b.title = "Cerrar la sesión de " + nombre;
+        b.onclick = () => { try { sessionStorage.removeItem(SS_SESION); } catch (e) {} location.reload(); };
+        listo();
+      };
+      const pedir = () => {
+        let crear = !Object.keys(leerUsuarios()).length;
+        const pintar = () => {
+          const hay = Object.keys(leerUsuarios()).length > 0;
+          $("ac-texto").textContent = crear ? (hay ? "Crea otro usuario en este navegador. Tendrá su propio libro, separado de los demás." : "Crea tu usuario para empezar. Tu libro quedará cifrado con tu contraseña en este navegador.") : "Entra con tu usuario y contraseña.";
+          $("ac-box2").hidden = !crear; $("ac-ok").textContent = crear ? "Crear usuario" : "Entrar";
+          $("ac-clave").autocomplete = crear ? "new-password" : "current-password";
+          $("ac-cambio").textContent = crear ? "Ya tengo usuario" : "Crear un usuario nuevo"; $("ac-cambio").hidden = crear && !hay;
+          $("ac-nota").textContent = crear ? "No hay forma de recuperar una contraseña olvidada: sin ella el libro no se puede abrir. Anótala y exporta respaldos." : "Los usuarios existen solo en este navegador. En otro computador crea tu usuario e importa un respaldo.";
+          err.textContent = "";
+        };
+        $("ac-cambio").onclick = () => { crear = !crear; pintar(); $("ac-usuario").focus(); };
+        $("ac-form").onsubmit = async (ev) => {
+          ev.preventDefault(); err.textContent = "";
+          const nombre = $("ac-usuario").value.trim(), usuario = norm(nombre), clave = $("ac-clave").value, lista = leerUsuarios(), boton = $("ac-ok");
+          if (!/^[a-z0-9._-]{3,30}$/.test(usuario)) { err.textContent = "El usuario debe tener entre 3 y 30 letras, números, puntos o guiones, sin espacios."; $("ac-usuario").focus(); return; }
+          boton.disabled = true;
+          try {
+            if (crear) {
+              if (lista[usuario]) { err.textContent = "Ese usuario ya existe en este navegador. Elige otro nombre o entra con él."; return; }
+              if (clave.length < 8) { err.textContent = "La contraseña debe tener al menos 8 caracteres."; $("ac-clave").focus(); return; }
+              if (clave !== $("ac-clave2").value) { err.textContent = "Las dos contraseñas no coinciden."; $("ac-clave2").focus(); return; }
+              const sal = crypto.getRandomValues(new Uint8Array(16)), k = await derivar(clave, sal, ITER);
+              let datos = {}, previo = null;
+              if (!Object.keys(lista).length) { try { previo = JSON.parse(localStorage.getItem(LS) || "null"); } catch (e) {} if (previo && Array.isArray(previo.movs)) datos = previo; }
+              localStorage.setItem(LS_DATOS + usuario, JSON.stringify(await cifrar(k, datos)));
+              lista[usuario] = { nombre, sal: b64e(sal), iter: ITER, creado: new Date().toISOString() };
+              localStorage.setItem(LS_USUARIOS, JSON.stringify(lista));
+              if (datos === previo) localStorage.removeItem(LS);
+              entrar(usuario, nombre, k, datos);
+            } else {
+              const u = lista[usuario], guardado = u && localStorage.getItem(LS_DATOS + usuario);
+              if (!u || !guardado) { await derivar(clave, new Uint8Array(16), ITER); err.textContent = "Usuario o contraseña incorrectos."; return; }
+              const k = await derivar(clave, b64d(u.sal), u.iter || ITER);
+              let datos;
+              try { datos = await descifrar(k, JSON.parse(guardado)); } catch (e) { err.textContent = "Usuario o contraseña incorrectos."; $("ac-clave").select(); return; }
+              entrar(usuario, u.nombre || nombre, k, datos);
+            }
+          } catch (e) { err.textContent = "No se pudo completar el acceso en este navegador. Ábrelo desde su dirección https e inténtalo de nuevo."; }
+          finally { boton.disabled = false; }
+        };
+        $("app").hidden = true; caja.hidden = false; pintar(); $("ac-usuario").focus();
+      };
+      if (!(window.crypto && crypto.subtle)) { $("app").hidden = true; caja.hidden = false; $("ac-form").hidden = false; $("ac-texto").textContent = "Este navegador no permite cifrar los datos desde esta dirección. Abre la aplicación desde su dirección https."; ["ac-usuario", "ac-clave", "ac-ok"].forEach((i) => { $(i).disabled = true; }); return; }
+      let previa = null;
+      try { previa = JSON.parse(sessionStorage.getItem(SS_SESION) || "null"); } catch (e) {}
+      const u = previa && leerUsuarios()[previa.u], guardado = u && localStorage.getItem(LS_DATOS + previa.u);
+      if (!u || !guardado) { pedir(); return; }
+      crypto.subtle.importKey("jwk", previa.k, { name: "AES-GCM" }, true, ["encrypt", "decrypt"])
+        .then((k) => descifrar(k, JSON.parse(guardado)).then((datos) => entrar(previa.u, u.nombre || previa.u, k, datos)))
+        .catch(pedir);
+    });
+  }
+
   /* ---------- almacenamiento ---------- */
   function storeLocal() {
-    try { const g = JSON.parse(localStorage.getItem(LS) || "null"); if (g) { movs = g.movs || []; progs = g.progs || []; metas = g.metas || []; ajustes = Object.assign(ajustes, g.ajustes || {}); } } catch (e) {}
-    const guardar = () => { try { localStorage.setItem(LS, JSON.stringify({ movs, progs, metas, ajustes })); } catch (e) {} render(); };
+    try { const g = sesion ? sesion.datos : JSON.parse(localStorage.getItem(LS) || "null"); if (g) { movs = g.movs || []; progs = g.progs || []; metas = g.metas || []; marcasLocal = g.sync || {}; ajustes = Object.assign(ajustes, g.ajustes || {}); } } catch (e) {}
+    let colaLocal = Promise.resolve();
+    const guardar = () => {
+      const datos = { movs, progs, metas, ajustes, sync: marcasLocal };
+      if (sesion) colaLocal = colaLocal.then(() => cifrar(sesion.clave, datos)).then((caja) => { localStorage.setItem(LS_DATOS + sesion.usuario, JSON.stringify(caja)); }).catch(() => { avisoFijo = "No se pudo guardar en este navegador. Exporta un respaldo para no perder los cambios."; pintarAviso(); });
+      else { try { localStorage.setItem(LS, JSON.stringify(datos)); } catch (e) {} }
+      render();
+    };
     avisoFijo = window.claude ? "Este libro se guarda solo en este navegador. Inicia sesión en claude.ai para guardarlo en tu cuenta." : "";
     cargado = true;
     return {
@@ -1497,6 +1607,7 @@ section { display: flex; flex-direction: column; gap: 12px; }
     };
   }
 
+  if (!window.claude) $("app").hidden = true;
   mostrar((location.hash || "").slice(1), true);
   (async function () {
     let db = null, uid = null, mcp = null, permisos = null;
@@ -1507,6 +1618,7 @@ section { display: flex; flex-direction: column; gap: 12px; }
         uid = r[1] ? await r[1].id() : null;
       }
     } catch (e) {}
+    if (!window.claude) await acceso();
     store = db && uid ? storeRemoto(db, uid) : storeLocal();
     render();
     if (db && uid && mcp) iniciarServipag(mcp, permisos, db, uid);

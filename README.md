@@ -10,9 +10,21 @@ Libro de cuentas personal: ingresos, gastos, crédito hipotecario, ahorro, fondo
 - **Gmail (opcional):** lee tus comprobantes de Servipag y tus recibos de Google Play y los anota como gastos.
 - **Respaldo:** exporta e importa todos tus datos en un archivo.
 
+## Acceso con usuario y contraseña
+
+Al abrir la aplicación se pide un usuario y una contraseña. La primera vez se crea el usuario; después se entra con él.
+
+- **No hay servidor ni base de datos de usuarios.** Cada usuario existe solo en el navegador donde se creó.
+- **El libro se guarda cifrado** con una clave derivada de la contraseña (PBKDF2 con 600.000 iteraciones y AES-GCM de 256 bits). Sin la contraseña, lo guardado en el navegador no se puede leer.
+- **Una contraseña olvidada no se puede recuperar.** Por eso conviene exportar respaldos.
+- En un mismo navegador pueden convivir varios usuarios, cada uno con su libro.
+- La sesión dura mientras la pestaña esté abierta. El botón **Salir** la cierra.
+
+La contraseña protege los datos, no la página: cualquiera puede abrir la dirección del sitio y crear su propio usuario con un libro vacío.
+
 ## Dónde quedan los datos
 
-En el navegador de cada computador (almacenamiento local). No se envían a ningún servidor y este repositorio no contiene datos de nadie. Para pasar el libro a otro equipo o no perderlo, usa **Respaldo → Exportar** y luego **Importar**.
+En el navegador de cada computador (almacenamiento local), cifrados. No se envían a ningún servidor y este repositorio no contiene datos de nadie. Para pasar el libro a otro equipo, usa **Respaldo → Exportar**, crea tu usuario en el otro equipo y usa **Importar**. El archivo de respaldo no va cifrado: guárdalo en un lugar seguro.
 
 ## Publicar con GitHub Pages
 
