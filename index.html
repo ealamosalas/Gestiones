@@ -124,7 +124,14 @@ form.nuevo { background: var(--surface); border: 1px solid var(--line); border-r
 .colhead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; border-bottom: 2px solid var(--c); padding-bottom: 8px; }
 .colhead .num { font-size: 18px; font-weight: 600; }
 .grupo { display: flex; flex-direction: column; }
-.grupohead { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; padding: 6px 0 2px; }
+.grupohead { display: flex; gap: 8px; align-items: baseline; padding: 6px 0 2px; width: 100%; background: none; border: 0; text-align: left; border-radius: 4px; }
+.grupohead .flecha, .flechab { color: var(--muted); font-size: 12px; width: 1em; flex: none; }
+.grupohead .cuenta { flex: 1; color: var(--muted); font-size: 12px; }
+.flechab { background: none; border: 0; padding: 0 6px 0 0; font-size: 14px; width: auto; vertical-align: middle; }
+.segmento { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); align-self: flex-start; }
+.segmento button { background: none; border: 0; padding: 6px 14px; font-weight: 500; }
+.segmento button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.aporte select { width: auto; max-width: 100%; }
 .grupohead h3::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--c); margin-right: 7px; }
 .grupohead .num { font-weight: 500; }
 .fila { display: grid; grid-template-columns: 2.4em minmax(0, 1fr) auto auto auto; gap: 8px; align-items: baseline; padding: 6px 0; border-top: 1px solid var(--line); }
@@ -331,12 +338,13 @@ section { display: flex; flex-direction: column; gap: 12px; }
       <input class="field" type="search" id="mv-q" placeholder="Buscar por concepto en este mes" autocomplete="off" aria-label="Buscar por concepto en este mes">
       <select class="field" id="mv-f" aria-label="Filtrar por origen o categoría"><option value="">Todo el mes</option></select>
       <button type="button" class="btn" id="mv-x" hidden>Quitar filtros</button>
+      <button type="button" class="btn" id="pl-todo">Contraer todo</button>
     </div>
     <p class="nota" id="mv-nota" role="status" hidden></p>
     <div>
       <div class="libro">
         <div class="col" style="--c: var(--s-ingreso)">
-          <div class="colhead"><h2>Ingresos</h2><span class="num" id="tot-in"></span></div>
+          <div class="colhead"><h2><button type="button" class="flechab" id="pl-in" aria-label="Contraer o expandir los ingresos">▾</button>Ingresos</h2><span class="num" id="tot-in"></span></div>
           <div id="lista-in"></div>
         </div>
         <div class="col" style="--c: var(--ink)">
@@ -400,8 +408,9 @@ section { display: flex; flex-direction: column; gap: 12px; }
 
   <div class="vista" id="v-graficos" hidden>
     <section>
+      <div class="segmento" role="group" aria-label="Comparar por"><button type="button" id="g-modo-mes" aria-pressed="true">Por mes</button><button type="button" id="g-modo-anio" aria-pressed="false">Por año</button></div>
       <h2 id="g-meses-t">Ingresos y salidas por mes</h2>
-      <p class="nota">Por cada mes, la barra azul son tus ingresos y la barra apilada tus salidas. Los meses que aún no llegan se ven atenuados y solo incluyen lo programado. Toca un mes para abrirlo.</p>
+      <p class="nota" id="g-meses-n"></p>
       <div class="leyenda">
         <span style="--c: var(--s-ingreso)"><i></i>Ingresos</span><span style="--c: var(--s-gasto)"><i></i>Gastos</span>
         <span style="--c: var(--s-ahorro)"><i></i>Ahorro</span><span style="--c: var(--s-hipo)"><i></i>Crédito hipotecario</span>
@@ -415,7 +424,7 @@ section { display: flex; flex-direction: column; gap: 12px; }
     </section>
     <section>
       <h2 id="g-bal-t">Balance acumulado</h2>
-      <p class="nota">Suma mes a mes lo que te va quedando (ingresos menos salidas) desde enero.</p>
+      <p class="nota" id="g-bal-n"></p>
       <div class="caja graf"><div class="graf-in" id="g-bal"></div></div>
     </section>
   </div>
@@ -453,17 +462,27 @@ section { display: flex; flex-direction: column; gap: 12px; }
 
   <section>
     <h2>Metas de ahorro</h2>
-    <p class="nota">Cada meta suma lo que anotes como Ahorro o Inversión con una categoría igual a su nombre, más lo que ya tenías al crearla.</p>
+    <p class="nota">Cada meta suma los aportes programados que tenga vinculados, lo que anotes como Ahorro o Inversión con una categoría igual a su nombre, y lo que ya tenías al crearla.</p>
     <div class="caja" id="metas-lista"></div>
     <form class="linea-form" id="meta-form" novalidate>
       <div class="ancho2"><label class="label" for="mt-nombre">Meta</label><input class="field" type="text" id="mt-nombre" maxlength="40" autocomplete="off" placeholder="Ej. Fondo de emergencia"></div>
       <div><label class="label" for="mt-monto">Monto objetivo</label><input class="field num" type="text" inputmode="decimal" id="mt-monto" placeholder="0" autocomplete="off"></div>
       <div><label class="label" for="mt-fecha">Fecha objetivo</label><input class="field" type="date" id="mt-fecha"></div>
       <div><label class="label" for="mt-inicial">Ya tengo</label><input class="field num" type="text" inputmode="decimal" id="mt-inicial" placeholder="Opcional" autocomplete="off"></div>
+      <div class="mt-ap"><label class="label" for="mt-aporte">Aporte mensual</label><input class="field num" type="text" inputmode="decimal" id="mt-aporte" placeholder="Opcional" autocomplete="off"></div>
+      <div class="mt-ap"><label class="label" for="mt-dia">Día del mes</label><input class="field num" type="number" min="1" max="31" id="mt-dia" placeholder="1"></div>
+      <div class="mt-ap"><label class="label" for="mt-tipo">Se anota como</label><select class="field" id="mt-tipo"><option value="ahorro">Ahorro</option><option value="inversion">Inversión</option></select></div>
       <button class="btn primary" type="submit" id="mt-ok">Agregar meta</button>
       <button class="btn" type="button" id="mt-cancel" hidden>Cancelar</button>
     </form>
+    <p class="nota" id="mt-ayuda">Si indicas un aporte mensual, se crea un movimiento fijo que verás cada mes en Movimientos y en Fijos y cuotas.</p>
     <div class="error" id="mt-error" role="alert"></div>
+  </section>
+
+  <section>
+    <h2>Aportes programados</h2>
+    <p class="nota">Tus ahorros e inversiones que se repiten (creados aquí o en Movimientos). Elige a qué meta suma cada uno.</p>
+    <div class="caja" id="aportes-lista"></div>
   </section>
   </div>
 
@@ -589,22 +608,22 @@ section { display: flex; flex-direction: column; gap: 12px; }
   function lienzo(cont, H, m, lo, hi, st, datos) {
     cont.textContent = "";
     const W = Math.max(cont.clientWidth, 560), svg = sv("svg", { width: W, height: H, viewBox: "0 0 " + W + " " + H, role: "img" });
-    const ph = H - m.t - m.b, band = (W - m.l - m.r) / 12;
+    const ph = H - m.t - m.b, band = (W - m.l - m.r) / Math.max(datos.length, 1);
     const y = (v) => m.t + ph - ((v - lo) / (hi - lo)) * ph;
     for (let v = lo; v <= hi + st / 2; v += st) {
       svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), style: "stroke:var(--line);stroke-width:" + (Math.abs(v) < st / 2 && lo < 0 ? 1.5 : 1) }));
       svg.append(sv("text", { x: m.l - 8, y: y(v) + 4, "text-anchor": "end" }, fmtC(v)));
     }
-    datos.forEach((d, i) => svg.append(sv("text", { x: m.l + i * band + band / 2, y: H - 9, "text-anchor": "middle", class: d.ym === mes ? "fuerte" : "" }, nombreMes(d.ym, { month: "short" }).replace(".", ""))));
+    datos.forEach((d, i) => svg.append(sv("text", { x: m.l + i * band + band / 2, y: H - 9, "text-anchor": "middle", class: d.sel ? "fuerte" : "" }, d.etq)));
     cont.append(svg);
     const tip = el("div", "tip"); tip.hidden = true; cont.append(tip);
     function zonas(filas) {
       datos.forEach((d, i) => {
         const z = sv("rect", { x: m.l + i * band, y: m.t, width: band, height: ph, class: "zona", tabindex: 0 });
         const info = filas(d, i);
-        z.setAttribute("aria-label", nombreMes(d.ym) + ": " + info.map((f) => f[1] + " " + f[2]).join(", "));
+        z.setAttribute("aria-label", d.titulo + ": " + info.map((f) => f[1] + " " + f[2]).join(", "));
         const ver = () => {
-          tip.textContent = ""; tip.append(el("b", "", nombreMes(d.ym) + (d.ym > MES_HOY ? " · programado" : "")));
+          tip.textContent = ""; tip.append(el("b", "", d.titulo + (d.nota || "")));
           info.forEach((f) => { const r = el("div", f[3] ? "tot" : ""); const n = el("span", "", f[1]); if (f[0]) { const k = el("i"); k.style.setProperty("--c", f[0]); n.prepend(k); } r.append(n, el("strong", "", f[2])); tip.append(r); });
           tip.hidden = false;
           const cx = m.l + i * band + band / 2, tw = tip.offsetWidth;
@@ -612,7 +631,7 @@ section { display: flex; flex-direction: column; gap: 12px; }
         };
         z.addEventListener("pointerenter", ver); z.addEventListener("focus", ver);
         z.addEventListener("pointerleave", () => { tip.hidden = true; }); z.addEventListener("blur", () => { tip.hidden = true; });
-        z.addEventListener("click", () => { mes = d.ym; $("f-fecha").value = mes === MES_HOY ? HOY : mes + "-01"; render(); });
+        z.addEventListener("click", d.ir);
         svg.append(z);
       });
     }
@@ -623,9 +642,9 @@ section { display: flex; flex-direction: column; gap: 12px; }
     const max = Math.max(1, ...datos.map((d) => Math.max(d.ingreso, d.salidas)));
     const st = paso(max / 4), hi = Math.ceil(max / st) * st;
     const g = lienzo($("g-meses"), 290, m, 0, hi, st, datos);
-    const bw = Math.max(6, Math.min(22, (g.band - 12) / 2));
+    const bw = Math.max(6, Math.min(datos.length <= 6 ? 34 : 22, (g.band - 12) / 2));
     datos.forEach((d, i) => {
-      const grupo = sv("g", { opacity: d.ym > MES_HOY ? 0.45 : 1 }), cx = g.x0 + i * g.band + g.band / 2, y0 = g.y(0);
+      const grupo = sv("g", { opacity: d.futuro ? 0.45 : 1 }), cx = g.x0 + i * g.band + g.band / 2, y0 = g.y(0);
       if (d.ingreso > 0) grupo.append(sv("path", { d: columna(cx - bw - 1, g.y(d.ingreso), bw, y0 - g.y(d.ingreso), 4), style: "fill:var(--s-ingreso)" }));
       let base = 0; const segs = APILA.filter((k) => d[k] > 0);
       segs.forEach((k, j) => {
@@ -641,20 +660,20 @@ section { display: flex; flex-direction: column; gap: 12px; }
     const cont = $("g-bal");
     let ac = 0, ult = -1, ini = -1;
     const pts = datos.map((d, i) => { ac += d.ingreso - d.salidas; if (d.hay) { ult = i; if (ini < 0) ini = i; } return ac; });
-    if (ult < 0) { cont.textContent = ""; cont.append(el("div", "vacio", "Todavía no hay movimientos en este año.")); return; }
+    if (ult < 0) { cont.textContent = ""; cont.append(el("div", "vacio", "Todavía no hay movimientos para graficar.")); return; }
     const vals = pts.slice(0, ult + 1);
     let lo = Math.min(0, ...vals), hi = Math.max(0, ...vals); if (lo === hi) hi = 1;
     const st = paso((hi - lo) / 4); lo = Math.floor(lo / st) * st; hi = Math.ceil(hi / st) * st;
     const m = { t: 22, r: 8, b: 30, l: 62 }, g = lienzo(cont, 240, m, lo, hi, st, datos);
     const X = (i) => g.x0 + i * g.band + g.band / 2;
-    let real = -1; datos.forEach((d, i) => { if (i <= ult && d.ym <= MES_HOY) real = i; });
+    let real = -1; datos.forEach((d, i) => { if (i <= ult && !d.futuro) real = i; });
     const linea = (a, b, op) => { if (b > a) g.svg.append(sv("polyline", { points: vals.slice(a, b + 1).map((v, k) => X(a + k) + "," + g.y(v)).join(" "), style: "fill:none;stroke:var(--accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round", opacity: op })); };
     if (real > ini) g.svg.append(sv("polygon", { points: X(ini) + "," + g.y(0) + " " + vals.slice(ini, real + 1).map((v, k) => X(ini + k) + "," + g.y(v)).join(" ") + " " + X(real) + "," + g.y(0), style: "fill:var(--accent)", opacity: 0.1 }));
     linea(ini, real, 1); linea(Math.max(real, ini), ult, 0.45);
     vals.forEach((v, i) => i >= ini && g.svg.append(sv("circle", { cx: X(i), cy: g.y(v), r: 4, style: "fill:var(--accent);stroke:var(--surface);stroke-width:2", opacity: i > real ? 0.45 : 1 })));
     const fin = real >= 0 ? real : ult;
-    g.svg.append(sv("text", { x: X(fin) + (fin > 9 ? -8 : 8), y: g.y(vals[fin]) - 9, "text-anchor": fin > 9 ? "end" : "start", class: "fuerte" }, fmt(vals[fin])));
-    g.zonas((d, i) => [["", "Balance del mes", fmt(d.ingreso - d.salidas)], ["var(--accent)", "Acumulado", fmt(pts[i]), true]]);
+    g.svg.append(sv("text", { x: X(fin) + (fin > datos.length * 0.75 ? -8 : 8), y: g.y(vals[fin]) - 9, "text-anchor": fin > datos.length * 0.75 ? "end" : "start", class: "fuerte" }, fmt(vals[fin])));
+    g.zonas((d, i) => [["", modoG === "anio" ? "Balance del año" : "Balance del mes", fmt(d.ingreso - d.salidas)], ["var(--accent)", "Acumulado", fmt(pts[i]), true]]);
   }
   function grafCats(delMes) {
     const c = $("g-cats"); c.textContent = "";
@@ -678,18 +697,38 @@ section { display: flex; flex-direction: column; gap: 12px; }
   }
   function pintarGraficos() {
     if (!datosG || vista !== "graficos") return;
-    const anio = mes.slice(0, 4), datos = [];
-    for (let i = 1; i <= 12; i++) {
-      const ym = anio + "-" + pad(i), d = { ym, ingreso: 0, gasto: 0, ahorro: 0, hipoteca: 0, inversion: 0, hay: false };
-      datosG.todos.forEach((x) => { if (TIPOS[x.tipo] && (x.fecha || "").startsWith(ym)) { d[x.tipo] += Number(x.monto) || 0; d.hay = true; } });
-      d.salidas = d.gasto + d.ahorro + d.hipoteca + d.inversion; datos.push(d);
+    const anio = mes.slice(0, 4), datos = [], anioHoy = MES_HOY.slice(0, 4);
+    const vacioD = () => ({ ingreso: 0, gasto: 0, ahorro: 0, hipoteca: 0, inversion: 0, hay: false });
+    const irMes = (ym) => () => { mes = ym; $("f-fecha").value = mes === MES_HOY ? HOY : mes + "-01"; render(); };
+    if (modoG === "anio") {
+      let desde = anioHoy, hasta = anio > anioHoy ? anio : anioHoy;
+      datosG.todos.forEach((x) => { const a = (x.fecha || "").slice(0, 4); if (TIPOS[x.tipo] && /^\d{4}$/.test(a) && a < desde) desde = a; });
+      if (Number(hasta) - Number(desde) > 14) desde = String(Number(hasta) - 14);
+      const porAnio = {};
+      for (let a = Number(desde); a <= Number(hasta); a++) porAnio[a] = Object.assign(vacioD(), { ym: a + "-12", etq: String(a), titulo: "Año " + a, sel: String(a) === anio, futuro: String(a) > anioHoy,
+        nota: String(a) === anioHoy ? " · incluye lo programado hasta diciembre" : String(a) > anioHoy ? " · programado" : "", ir: () => { modoG = "mes"; try { localStorage.setItem("libro-modo-graf", "mes"); } catch (e) {} irMes(a + mes.slice(4))(); } });
+      datosG.todos.forEach((x) => { const d = porAnio[Number((x.fecha || "").slice(0, 4))]; if (d && TIPOS[x.tipo]) { d[x.tipo] += Number(x.monto) || 0; d.hay = true; } });
+      Object.keys(porAnio).sort().forEach((a) => { const d = porAnio[a]; d.salidas = d.gasto + d.ahorro + d.hipoteca + d.inversion; datos.push(d); });
+    } else {
+      for (let i = 1; i <= 12; i++) {
+        const ym = anio + "-" + pad(i), d = Object.assign(vacioD(), { ym, etq: nombreMes(ym, { month: "short" }).replace(".", ""), titulo: nombreMes(ym), sel: ym === mes, futuro: ym > MES_HOY, nota: ym > MES_HOY ? " · programado" : "", ir: irMes(ym) });
+        datosG.todos.forEach((x) => { if (TIPOS[x.tipo] && (x.fecha || "").startsWith(ym)) { d[x.tipo] += Number(x.monto) || 0; d.hay = true; } });
+        d.salidas = d.gasto + d.ahorro + d.hipoteca + d.inversion; datos.push(d);
+      }
     }
-    $("g-meses-t").textContent = "Ingresos y salidas por mes en " + anio;
+    const porA = modoG === "anio";
+    $("g-modo-mes").setAttribute("aria-pressed", String(!porA)); $("g-modo-anio").setAttribute("aria-pressed", String(porA));
+    $("g-meses-t").textContent = porA ? "Ingresos y salidas por año" : "Ingresos y salidas por mes en " + anio;
+    $("g-meses-n").textContent = porA ? "Por cada año, la barra azul son tus ingresos y la barra apilada tus salidas. El año en curso incluye lo programado hasta diciembre. Toca un año para ver su detalle por mes."
+      : "Por cada mes, la barra azul son tus ingresos y la barra apilada tus salidas. Los meses que aún no llegan se ven atenuados y solo incluyen lo programado. Toca un mes para abrirlo.";
     $("g-cats-t").textContent = "Gastos de " + nombreMes(mes) + " por categoría";
-    $("g-bal-t").textContent = "Balance acumulado en " + anio;
+    $("g-bal-t").textContent = porA ? "Balance acumulado por año" : "Balance acumulado en " + anio;
+    $("g-bal-n").textContent = porA ? "Suma año a año lo que te va quedando (ingresos menos salidas)." : "Suma mes a mes lo que te va quedando (ingresos menos salidas) desde enero.";
     anchoG = $("g-meses").clientWidth;
     grafMeses(datos); grafCats(datosG.delMes); grafBalance(datos);
   }
+  const ponerModo = (m) => () => { modoG = m; try { localStorage.setItem("libro-modo-graf", m); } catch (e) {} pintarGraficos(); };
+  $("g-modo-mes").onclick = ponerModo("mes"); $("g-modo-anio").onclick = ponerModo("anio");
   if (window.ResizeObserver) new ResizeObserver(() => { if (vista === "graficos" && Math.abs($("g-meses").clientWidth - anchoG) > 4) pintarGraficos(); }).observe($("v-graficos"));
 
   /* ---------- fijos y cuotas ---------- */
@@ -757,6 +796,10 @@ section { display: flex; flex-direction: column; gap: 12px; }
 
   /* ---------- avisos ---------- */
   let avisoFijo = "", avisoAccion = null;
+  let plegados = {}, modoG = "mes";
+  try { plegados = JSON.parse(localStorage.getItem("libro-plegados") || "{}") || {}; modoG = localStorage.getItem("libro-modo-graf") === "anio" ? "anio" : "mes"; } catch (e) {}
+  const GRUPOS = ["ingreso", "gasto", "hipoteca", "ahorro", "inversion"];
+  function plegar(cambio) { plegados = Object.assign({}, plegados, cambio); try { localStorage.setItem("libro-plegados", JSON.stringify(plegados)); } catch (e) {} render(); }
   function pintarAviso() {
     const a = $("aviso");
     a.textContent = "";
@@ -852,7 +895,10 @@ section { display: flex; flex-direction: column; gap: 12px; }
     if (!cargado) vacio(li, "Cargando tu libro…");
     else if (!ingresos.length) vacio(li, "Aquí aparecen tus ingresos del mes: sueldo, honorarios, arriendos. Agrégalos con el formulario de arriba.", !movs.length && !progs.length && !!store);
     else if (!fIn.length) vacio(li, "Ningún ingreso de este mes coincide con el filtro.");
+    else if (plegados.ingreso && !filtrando) vacio(li, fIn.length + (fIn.length === 1 ? " ingreso oculto." : " ingresos ocultos.") + " Pulsa la flecha para verlos.");
     else fIn.forEach((m) => li.append(fila(m)));
+    $("pl-in").textContent = plegados.ingreso && !filtrando ? "▸" : "▾"; $("pl-in").setAttribute("aria-expanded", String(!(plegados.ingreso && !filtrando)));
+    $("pl-todo").textContent = GRUPOS.every((k) => plegados[k]) ? "Expandir todo" : "Contraer todo";
 
     const lo = $("lista-out"); lo.textContent = "";
     if (!cargado) vacio(lo, "Cargando tu libro…");
@@ -862,10 +908,12 @@ section { display: flex; flex-direction: column; gap: 12px; }
       const g = fOut.filter((m) => m.tipo === t);
       if (!g.length) return;
       const box = el("div", "grupo"); box.style.setProperty("--c", TIPOS[t].color);
-      const h = el("div", "grupohead");
-      h.append(el("h3", "", TIPOS[t].grupo), el("span", "num", fmt(suma(g))));
+      const cerrado = !filtrando && !!plegados[t], h = el("button", "grupohead");
+      h.type = "button"; h.setAttribute("aria-expanded", String(!cerrado));
+      h.append(el("span", "flecha", cerrado ? "▸" : "▾"), el("h3", "", TIPOS[t].grupo), el("span", "cuenta", cerrado ? g.length + (g.length === 1 ? " movimiento" : " movimientos") : ""), el("span", "num", fmt(suma(g))));
+      h.onclick = () => plegar({ [t]: !plegados[t] });
       box.append(h);
-      g.forEach((m) => box.append(fila(m)));
+      if (!cerrado) g.forEach((m) => box.append(fila(m)));
       lo.append(box);
     });
 
@@ -985,7 +1033,11 @@ section { display: flex; flex-direction: column; gap: 12px; }
           g = store.cambiarProg(p.id, Object.assign({ desde: ym, dia, cuotas }, campos));
         } else if (p.hasta && p.hasta < ym) g = store.cambiarProg(p.id, campos);
         else if (ym <= p.desde) g = store.cambiarProg(p.id, Object.assign({ desde: ym, dia }, campos));
-        else g = store.cambiarProg(p.id, { hasta: ymAdd(ym, -1) }).then(() => store.agregarProg(Object.assign({ dia, desde: ym, cuotas: null, hasta: p.hasta || null, creado: new Date().toISOString() }, campos)));
+        else g = store.cambiarProg(p.id, { hasta: ymAdd(ym, -1) }).then(() => store.agregarProg(Object.assign({ dia, desde: ym, cuotas: null, hasta: p.hasta || null, creado: new Date().toISOString() }, p.meta ? { meta: p.meta } : {}, campos)));
+        const mt = metaDe(p.meta);
+        if (mt && esAporte(tipo) && campos.categoria && campos.categoria !== mt.nombre && !metas.some((x) => x.id !== mt.id && norm(x.nombre) === norm(campos.categoria))) {
+          const viejo = mt.nombre; g = g.then(() => store.cambiarMeta(mt.id, { nombre: campos.categoria })).then(() => renombrarMeta(mt.id, campos.categoria, viejo));
+        }
       }
       g.then(() => { cancelarEdicion(); if (ym !== mes && editando === null) { mes = ym; render(); } }).catch(falloGuardar);
       return;
@@ -993,7 +1045,8 @@ section { display: flex; flex-direction: column; gap: 12px; }
     const base = { tipo, concepto: $("f-concepto").value.trim(), categoria: $("f-cat").value.trim(), monto, creado: new Date().toISOString() };
     const guardado = repite === "una"
       ? store.agregar(Object.assign({ fecha }, base))
-      : store.agregarProg(Object.assign({ dia: Number(fecha.slice(8, 10)), desde: fecha.slice(0, 7), cuotas: repite === "cuotas" ? cuotas : null }, base));
+      : store.agregarProg(Object.assign({ dia: Number(fecha.slice(8, 10)), desde: fecha.slice(0, 7), cuotas: repite === "cuotas" ? cuotas : null }, base,
+          esAporte(tipo) && metas.some((x) => norm(x.nombre) === norm(base.categoria)) ? { meta: metas.find((x) => norm(x.nombre) === norm(base.categoria)).id } : {}));
     guardado.then(() => {
       $("f-concepto").value = ""; $("f-monto").value = ""; $("f-cat").value = ""; $("f-cuotas").value = "";
       $("f-repite").value = "una"; pintarRepite();
@@ -1060,6 +1113,8 @@ section { display: flex; flex-direction: column; gap: 12px; }
   }
   $("q").addEventListener("input", pintarBuscar); $("q-tipo").onchange = pintarBuscar;
   $("mv-q").addEventListener("input", () => render()); $("mv-f").onchange = () => { $("mv-f").blur(); render(); };
+  $("pl-in").onclick = () => plegar({ ingreso: !plegados.ingreso });
+  $("pl-todo").onclick = () => { const v = !GRUPOS.every((k) => plegados[k]), c = {}; GRUPOS.forEach((k) => { c[k] = v; }); plegar(c); };
   $("mv-x").onclick = () => { $("mv-q").value = ""; $("mv-f").value = ""; render(); };
 
   /* ---------- presupuesto ---------- */
@@ -1118,38 +1173,84 @@ section { display: flex; flex-direction: column; gap: 12px; }
   });
 
   /* ---------- metas ---------- */
+  const esAporte = (t) => t === "ahorro" || t === "inversion";
+  const metaDe = (id) => (id && id !== "ninguna" ? metas.find((x) => x.id === id) : null) || null;
+  /* Un movimiento suma a una meta si está vinculado a ella, o si no tiene vínculo y su categoría es el nombre de la meta. */
+  const sumaAMeta = (m, x, clave) => { const v = m.prog ? m.prog.meta : m.meta; return esAporte(m.tipo) && (v ? v === x.id : norm(m.categoria) === clave); };
+  let metaParaProg = null;
+  function renombrarMeta(id, nuevo, viejo) {
+    const tareas = [];
+    progs.forEach((p) => { if (p.meta === id && p.categoria !== nuevo) tareas.push(store.cambiarProg(p.id, { categoria: nuevo })); });
+    movs.forEach((m) => { if (esAporte(m.tipo) && m.categoria !== nuevo && (m.meta === id || (!m.meta && viejo && norm(m.categoria) === norm(viejo)))) tareas.push(store.cambiar(m.id, { categoria: nuevo })); });
+    return Promise.all(tareas);
+  }
   function pintarMetas() {
     if (vista !== "acumulado" || !datosG) return;
-    const cont = $("metas-lista"); cont.textContent = "";
-    if (!metas.length) { cont.append(el("div", "vacio", "Aquí verás el avance de cada meta y cuánto apartar al mes para llegar a tiempo. Crea la primera con el formulario de abajo.")); return; }
     const corto = { month: "short", year: "numeric" };
+    const activos = progs.filter((p) => progValido(p) && esAporte(p.tipo) && !(finProg(p) && finProg(p) < MES_HOY));
+    const cont = $("metas-lista"); cont.textContent = "";
+    if (!metas.length) cont.append(el("div", "vacio", "Aquí verás el avance de cada meta, a qué ritmo vas y cuánto apartar al mes para llegar a tiempo. Crea la primera con el formulario de abajo."));
     metas.slice().sort((a, b) => (a.fecha || "") < (b.fecha || "") ? -1 : 1).forEach((x) => {
       const objetivo = Number(x.monto) || 0, clave = norm(x.nombre);
-      const avance = (Number(x.inicial) || 0) + suma(datosG.acum.filter((m) => (m.tipo === "ahorro" || m.tipo === "inversion") && norm(m.categoria) === clave));
+      const avance = (Number(x.inicial) || 0) + suma(datosG.acum.filter((m) => sumaAMeta(m, x, clave)));
+      const mensual = suma(activos.filter((p) => p.meta === x.id || (!p.meta && norm(p.categoria) === clave)));
       const falta = Math.max(objetivo - avance, 0), ym = (x.fecha || "").slice(0, 7), r = el("div", "meta"), cab = el("div", "cab");
       cab.append(el("strong", "", x.nombre), el("span", "num", fmt(avance) + " de " + fmt(objetivo) + " · " + (objetivo ? Math.min(Math.round((avance / objetivo) * 100), 999) : 0) + " %"));
       const ed = el("button", "btn chico", "Editar"); ed.type = "button"; ed.onclick = () => editarMeta(x);
-      const b = el("button", "btn chico", "Borrar"); b.type = "button"; confirmar(b, "¿Borrar meta?", () => store.borrarMeta(x.id));
+      const b = el("button", "btn chico", "Borrar"); b.type = "button";
+      confirmar(b, "¿Borrar meta?", () => Promise.all(progs.filter((p) => p.meta === x.id).map((p) => store.cambiarProg(p.id, { meta: null }))).then(() => store.borrarMeta(x.id)));
       cab.append(ed, b);
       const metro = el("div", "metro"), barra = el("i"); barra.style.width = objetivo ? Math.min((avance / objetivo) * 100, 100) + "%" : "0"; metro.append(barra);
       let txt;
       if (!falta) txt = "✓ Meta cumplida.";
-      else if (!ym) txt = "Te faltan " + fmt(falta) + ".";
-      else if (ym < MES_HOY) txt = "La fecha objetivo (" + nombreMes(ym, corto) + ") ya pasó y te faltan " + fmt(falta) + ". Edita la meta para darle una fecha nueva.";
-      else { const n = ymDiff(ym, MES_HOY) + 1; txt = "Te faltan " + fmt(falta) + ". Aparta " + fmt(Math.ceil(falta / n)) + " al mes para llegar en " + nombreMes(ym, corto) + " (" + n + (n === 1 ? " mes, contando este)." : " meses, contando este)."); }
+      else if (ym && ym < MES_HOY) txt = "La fecha objetivo (" + nombreMes(ym, corto) + ") ya pasó y te faltan " + fmt(falta) + ". Edita la meta para darle una fecha nueva.";
+      else if (mensual > 0) {
+        const llega = ymAdd(MES_HOY, Math.ceil(falta / mensual)), restan = ym ? ymDiff(ym, MES_HOY) : 0;
+        txt = "Te faltan " + fmt(falta) + ". Con tu aporte de " + fmt(mensual) + " al mes llegas en " + nombreMes(llega, corto) + (!ym ? "." : llega <= ym ? ", a tiempo para tu fecha objetivo (" + nombreMes(ym, corto) + ")."
+          : ", después de tu fecha objetivo (" + nombreMes(ym, corto) + ")." + (restan > 0 ? " Para llegar a tiempo, sube el aporte a " + fmt(Math.ceil(falta / restan)) + " al mes." : ""));
+      } else if (!ym) txt = "Te faltan " + fmt(falta) + ".";
+      else { const n = ymDiff(ym, MES_HOY) + 1; txt = "Te faltan " + fmt(falta) + ". Aparta " + fmt(Math.ceil(falta / n)) + " al mes para llegar en " + nombreMes(ym, corto) + " (" + n + (n === 1 ? " mes, contando este)." : " meses, contando este).") + " Todavía no tiene un aporte programado."; }
       r.append(cab, metro, el("p", "", txt));
       cont.append(r);
     });
+    /* aportes programados */
+    const ap = $("aportes-lista");
+    if (ap.contains(document.activeElement)) return;
+    ap.textContent = "";
+    if (!activos.length) { ap.append(el("div", "vacio", "Aquí aparecen los ahorros e inversiones que crees como «Todos los meses» o «En cuotas» en Movimientos, y los aportes mensuales que definas al crear una meta.")); return; }
+    activos.slice().sort((a, b) => (a.concepto || "").localeCompare(b.concepto || "")).forEach((p) => {
+      const r = el("div", "prog aporte"); r.style.setProperty("--c", TIPOS[p.tipo].color);
+      const q = el("span", "que", p.concepto || TIPOS[p.tipo].nombre);
+      q.append(el("span", "cat", TIPOS[p.tipo].nombre + " · " + (p.cuotas ? p.cuotas + " cuotas desde " + nombreMes(p.desde, corto) : "todos los meses, día " + (p.dia || 1)) + (p.categoria ? " · " + p.categoria : "")));
+      const sel = el("select", "field"); sel.setAttribute("aria-label", "Meta de " + (p.concepto || "este aporte"));
+      const op = (v, t) => { const o = el("option", "", t); o.value = v; sel.append(o); };
+      op("", "Sin meta"); metas.forEach((x) => op(x.id, x.nombre)); op("+", "Nueva meta…");
+      const actual = metaDe(p.meta) || (!p.meta ? metas.find((x) => norm(x.nombre) === norm(p.categoria)) : null);
+      sel.value = actual ? actual.id : "";
+      sel.onchange = () => {
+        const v = sel.value; sel.blur();
+        if (v === "+") { limpiarMeta(); metaParaProg = p.id; $("mt-nombre").value = p.categoria || p.concepto || ""; $("mt-ayuda").textContent = "La meta nueva quedará vinculada a «" + (p.concepto || "este aporte") + "»."; document.querySelectorAll(".mt-ap").forEach((d) => { d.hidden = true; }); $("meta-form").scrollIntoView({ block: "center" }); $("mt-monto").focus(); pintarMetas(); return; }
+        const x = metaDe(v);
+        store.cambiarProg(p.id, x ? { meta: x.id, categoria: x.nombre } : { meta: "ninguna" }).catch(falloGuardar);
+      };
+      const ed = el("button", "btn chico", "Editar"); ed.type = "button"; ed.onclick = () => editarProg(p);
+      r.append(q, el("span", "num", fmt(p.monto)), sel, ed);
+      ap.append(r);
+    });
   }
   function editarMeta(x) {
-    metaEditando = x.id;
+    metaEditando = x.id; metaParaProg = null;
     $("mt-nombre").value = x.nombre || ""; $("mt-monto").value = String(x.monto || ""); $("mt-fecha").value = x.fecha || ""; $("mt-inicial").value = x.inicial ? String(x.inicial) : "";
+    document.querySelectorAll(".mt-ap").forEach((d) => { d.hidden = true; });
+    $("mt-ayuda").textContent = "Si cambias el nombre, también cambia en los aportes y movimientos vinculados a esta meta.";
     $("mt-ok").textContent = "Guardar meta"; $("mt-cancel").hidden = false; $("mt-error").textContent = "";
     $("meta-form").scrollIntoView({ block: "center" }); $("mt-monto").focus();
   }
   function limpiarMeta() {
-    metaEditando = null;
-    ["mt-nombre", "mt-monto", "mt-fecha", "mt-inicial"].forEach((i) => { $(i).value = ""; });
+    metaEditando = null; metaParaProg = null;
+    ["mt-nombre", "mt-monto", "mt-fecha", "mt-inicial", "mt-aporte", "mt-dia"].forEach((i) => { $(i).value = ""; });
+    document.querySelectorAll(".mt-ap").forEach((d) => { d.hidden = false; });
+    $("mt-ayuda").textContent = "Si indicas un aporte mensual, se crea un movimiento fijo que verás cada mes en Movimientos y en Fijos y cuotas.";
     $("mt-ok").textContent = "Agregar meta"; $("mt-cancel").hidden = true;
   }
   $("mt-cancel").onclick = limpiarMeta;
@@ -1157,12 +1258,25 @@ section { display: flex; flex-direction: column; gap: 12px; }
     ev.preventDefault();
     const err = $("mt-error"); err.textContent = "";
     const nombre = $("mt-nombre").value.trim(), monto = parseMonto($("mt-monto").value), fecha = $("mt-fecha").value, ini = parseMonto($("mt-inicial").value);
+    const aporte = parseMonto($("mt-aporte").value), dia = Math.min(Math.max(Math.round(Number($("mt-dia").value)) || 1, 1), 31), tipo = $("mt-tipo").value === "inversion" ? "inversion" : "ahorro";
     if (!store) { err.textContent = "El libro todavía está cargando. Espera un momento."; return; }
     if (!nombre) { err.textContent = "Ponle un nombre a la meta."; $("mt-nombre").focus(); return; }
+    if (metas.some((x) => x.id !== metaEditando && norm(x.nombre) === norm(nombre))) { err.textContent = "Ya tienes una meta con ese nombre."; $("mt-nombre").focus(); return; }
     if (!(monto > 0) || !isFinite(monto)) { err.textContent = "Escribe el monto que quieres juntar."; $("mt-monto").focus(); return; }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) { err.textContent = "Elige la fecha en que quieres cumplirla."; $("mt-fecha").focus(); return; }
     const d = { nombre, monto, fecha, inicial: ini > 0 && isFinite(ini) ? ini : 0 };
-    (metaEditando ? store.cambiarMeta(metaEditando, d) : store.agregarMeta(Object.assign({ creado: new Date().toISOString() }, d))).then(() => { limpiarMeta(); pintarCats(); }).catch((e) => { falloGuardar(e); err.textContent = $("f-error").textContent; });
+    let g;
+    if (metaEditando) { const id = metaEditando, viejo = (metaDe(id) || {}).nombre; g = store.cambiarMeta(id, d).then(() => (viejo !== nombre ? renombrarMeta(id, nombre, viejo) : null)); }
+    else {
+      const paraProg = metaParaProg;
+      g = store.agregarMeta(Object.assign({ creado: new Date().toISOString() }, d)).then((id) => {
+        if (!id) return null;
+        if (paraProg) return store.cambiarProg(paraProg, { meta: id, categoria: nombre });
+        if (aporte > 0 && isFinite(aporte)) return store.agregarProg({ tipo, concepto: "Aporte a " + nombre, categoria: nombre, monto: aporte, dia, desde: MES_HOY, cuotas: null, meta: id, creado: new Date().toISOString() });
+        return null;
+      });
+    }
+    g.then(() => { limpiarMeta(); pintarCats(); }).catch((e) => { falloGuardar(e); err.textContent = $("f-error").textContent; });
   });
 
   /* ---------- respaldo ---------- */
@@ -1664,7 +1778,7 @@ section { display: flex; flex-direction: column; gap: 12px; }
       borrar: (id) => { movs = movs.filter((m) => m.id !== id); tumba(id); return hecho(); },
       cambiar: (id, c) => { movs = cambia(movs, id, c); return hecho(); },
       poner: (id, d) => { const x = Object.assign({ id, mod: sello() }, d); movs = movs.some((m) => m.id === id) ? movs.map((m) => (m.id === id ? x : m)) : movs.concat([x]); return hecho(); },
-      agregarMeta: (d) => { metas = metas.concat([Object.assign({ id: nuevoId("m"), mod: sello() }, d)]); return hecho(); },
+      agregarMeta: (d) => { const id = nuevoId("m"); metas = metas.concat([Object.assign({ id, mod: sello() }, d)]); guardar(); return Promise.resolve(id); },
       cambiarMeta: (id, c) => { metas = cambia(metas, id, c); return hecho(); },
       borrarMeta: (id) => { metas = metas.filter((x) => x.id !== id); tumba(id); return hecho(); },
       importar: (d) => {
@@ -1701,7 +1815,7 @@ section { display: flex; flex-direction: column; gap: 12px; }
       agregar: (d) => col.add(d),
       borrar: (id) => col.doc(id).delete(),
       cambiar: (id, c) => col.doc(id).update(c),
-      agregarMeta: (d) => mcol.add(d),
+      agregarMeta: (d) => mcol.add(d).then((r) => r.id),
       cambiarMeta: (id, c) => mcol.doc(id).update(c),
       borrarMeta: (id) => mcol.doc(id).delete(),
       importar: async (d, avance) => {
