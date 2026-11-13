@@ -299,12 +299,9 @@ section { display: flex; flex-direction: column; gap: 12px; }
     <strong>Gmail</strong>
     <span id="sync-estado" role="status">Toma tus comprobantes de Servipag y tus recibos de Google Play desde Gmail y los anota como gastos.</span>
     <button type="button" class="btn chico" id="sync-btn">Sincronizar</button>
+    <button type="button" class="btn chico primary" id="drive-btn" hidden>Respaldo Drive</button>
   </div>
   <p class="nota" id="drive-estado" role="status" hidden></p>
-  <form class="linea-form" id="drive-form" hidden novalidate>
-    <div class="ancho2"><label class="label" for="drive-clave">Contraseña del libro guardado en Drive</label><input class="field" type="password" id="drive-clave" autocomplete="current-password" maxlength="200"></div>
-    <button class="btn primary" type="submit">Abrir libro de Drive</button>
-  </form>
 
   <form class="nuevo" id="nuevo" novalidate>
     <fieldset class="tipos" id="tipos"><legend class="label" id="f-leyenda" style="padding:0;margin-bottom:6px">Nuevo movimiento</legend></fieldset>
@@ -759,7 +756,7 @@ section { display: flex; flex-direction: column; gap: 12px; }
   }
 
   /* ---------- avisos ---------- */
-  let avisoFijo = "";
+  let avisoFijo = "", avisoAccion = null;
   function pintarAviso() {
     const a = $("aviso");
     a.textContent = "";
@@ -767,6 +764,7 @@ section { display: flex; flex-direction: column; gap: 12px; }
     if (!avisoFijo && !hayEjemplos) { a.hidden = true; return; }
     a.hidden = false;
     if (avisoFijo) a.append(el("span", "", avisoFijo));
+    if (avisoFijo && avisoAccion) { const ba = el("button", "btn", avisoAccion.texto); ba.type = "button"; ba.onclick = avisoAccion.fn; a.append(ba); }
     if (hayEjemplos) {
       a.append(el("span", "", "Estás viendo movimientos de ejemplo. Bórralos cuando empieces a anotar los tuyos."));
       const b = el("button", "btn", "Borrar ejemplos");
@@ -1171,7 +1169,7 @@ section { display: flex; flex-direction: column; gap: 12px; }
   let descargas = null;
   function pintarRespaldo() {
     if (vista !== "respaldo") return;
-    $("rs-cuenta").textContent = !cargado ? "Cargando tu libro…" : "Tu libro tiene " + movs.length + " movimientos, " + progs.length + " fijos o compras en cuotas, " + metas.length + " metas y " + Object.keys(ajustes.presupuestos || {}).length + " topes de presupuesto." + (window.claude ? "" : " Todo se guarda cifrado en este navegador de este computador: si conectas Google en Movimientos, también queda una copia cifrada en tu Drive y se sincroniza entre equipos. Exporta un respaldo de vez en cuando. El archivo de respaldo no va cifrado, así que guárdalo en un lugar seguro.");
+    $("rs-cuenta").textContent = !cargado ? "Cargando tu libro…" : "Tu libro tiene " + movs.length + " movimientos, " + progs.length + " fijos o compras en cuotas, " + metas.length + " metas y " + Object.keys(ajustes.presupuestos || {}).length + " topes de presupuesto." + (window.claude ? "" : " Todo se guarda cifrado en este navegador de este computador: si conectas Google en Movimientos, el libro también se guarda en tu Drive, en el archivo Libro_de_cuentas, y se sincroniza entre equipos. Exporta un respaldo de vez en cuando. El archivo de respaldo no va cifrado, así que guárdalo en un lugar seguro.");
   }
   $("rs-exp").onclick = () => {
     const est = $("rs-estado"), nombre = "libro-de-cuentas-" + HOY + ".json";
@@ -1399,7 +1397,7 @@ section { display: flex; flex-direction: column; gap: 12px; }
     if (location.protocol === "file:") { estado.textContent = "Para leer tus comprobantes desde Gmail abre esta aplicación desde su dirección web (https). Google no permite iniciar sesión desde un archivo."; boton.hidden = true; return; }
     if (!cid) { estado.textContent = "Para leer tus comprobantes desde Gmail falta poner el identificador de cliente de Google en el archivo config.js."; boton.hidden = true; return; }
     boton.textContent = "Conectar Google";
-    estado.textContent = "Conecta tu cuenta de Google para guardar tu libro en tu Drive y leer tus comprobantes de Servipag y Google Play desde Gmail.";
+    estado.textContent = "Conecta tu cuenta de Google para guardar tu libro en tu Drive (archivo Libro_de_cuentas) y leer tus comprobantes de Servipag y Google Play desde Gmail.";
     const gsi = document.createElement("script"); gsi.src = "https://accounts.google.com/gsi/client"; gsi.async = true; document.head.append(gsi);
     let token = "", vence = 0, cliente = null;
     const api = async (ruta) => {
@@ -1439,11 +1437,15 @@ section { display: flex; flex-direction: column; gap: 12px; }
       if (e && e.g === "permiso") return "Google no permitió leer el correo. Revisa que la API de Gmail esté activada en tu proyecto de Google Cloud y que tu cuenta esté en la lista de usuarios de prueba.";
       return "No se pudo leer Gmail ahora. Revisa tu conexión e inténtalo de nuevo.";
     });
-    /* ----- Google Drive: el libro cifrado se guarda en la carpeta privada de la aplicación ----- */
-    const ALC_GMAIL = "https://www.googleapis.com/auth/gmail.readonly", ALC_DRIVE = "https://www.googleapis.com/auth/drive.appdata";
-    const DRIVE = "https://www.googleapis.com/drive/v3/files", SUBIR = "https://www.googleapis.com/upload/drive/v3/files", ARCHIVO = "libro-de-cuentas.json";
-    const dEstado = $("drive-estado"), dForm = $("drive-form");
-    let conDrive = false, conGmail = false, idArchivo = null, enDrive = false, otraVez = false, reloj = null;
+    /* ----- Google Drive: el libro se guarda legible en "Mi unidad", en el archivo Libro_de_cuentas ----- */
+    const ALC_GMAIL = "https://www.googleapis.com/auth/gmail.readonly", ALC_DRIVE = "https://www.googleapis.com/auth/drive.file";
+    const DRIVE = "https://www.googleapis.com/drive/v3/files", SUBIR = "https://www.googleapis.com/upload/drive/v3/files", ARCHIVO = "Libro_de_cuentas";
+    const LS_DRIVE = "libro-drive-v1:" + (sesion ? sesion.usuario : ""), dEstado = $("drive-estado"), dBoton = $("drive-btn");
+    let conDrive = false, conGmail = false, idArchivo = null, enDrive = false, otraVez = false, forzarOtra = false, reloj = null, relojVence = null, pendiente = false;
+    let usoDrive = false; try { usoDrive = localStorage.getItem(LS_DRIVE) === "1"; } catch (e) {}
+    const conectado = () => !!token && Date.now() < vence;
+    const alerta = (texto) => { avisoFijo = texto; avisoAccion = texto ? { texto: "Conectar Google", fn: () => conectar(false) } : null; pintarAviso(); };
+    const hora = () => new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
     const gfetch = async (url, opt) => {
       const r = await fetch(url, Object.assign({}, opt, { headers: Object.assign({ Authorization: "Bearer " + token }, (opt || {}).headers) }));
       if (r.status === 401) throw { g: "sesion" };
@@ -1452,77 +1454,84 @@ section { display: flex; flex-direction: column; gap: 12px; }
       return r;
     };
     const bajar = async () => {
-      if (!idArchivo) { const l = await (await gfetch(DRIVE + "?spaces=appDataFolder&fields=" + encodeURIComponent("files(id)") + "&q=" + encodeURIComponent("name='" + ARCHIVO + "'"))).json(); idArchivo = l.files && l.files[0] ? l.files[0].id : null; }
-      return idArchivo ? (await gfetch(DRIVE + "/" + encodeURIComponent(idArchivo) + "?alt=media")).json() : null;
+      if (!idArchivo) {
+        const l = await (await gfetch(DRIVE + "?spaces=drive&orderBy=" + encodeURIComponent("modifiedTime desc") + "&fields=" + encodeURIComponent("files(id)") + "&q=" + encodeURIComponent("name='" + ARCHIVO + "' and trashed=false"))).json();
+        idArchivo = l.files && l.files[0] ? l.files[0].id : null;
+      }
+      if (!idArchivo) return null;
+      let r;
+      try { r = await gfetch(DRIVE + "/" + encodeURIComponent(idArchivo) + "?alt=media"); } catch (e) { if (e && e.g === "red") { idArchivo = null; return null; } throw e; }
+      const texto = await r.text();
+      let d = null; try { d = JSON.parse(texto); } catch (e) {}
+      if (!d || typeof d !== "object" || !Array.isArray(d.movs)) { if (!texto.trim()) return null; throw { g: "archivo" }; }
+      return d;
     };
-    const subir = async (caja) => {
-      const cuerpo = JSON.stringify(caja);
+    const subir = async (datos) => {
+      const cuerpo = JSON.stringify(Object.assign({ app: "libro-de-cuentas", version: 1, actualizado: new Date().toISOString() }, datos), null, 1);
       if (idArchivo) { await gfetch(SUBIR + "/" + encodeURIComponent(idArchivo) + "?uploadType=media", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: cuerpo }); return; }
       const lim = "libro" + Date.now();
-      const multi = "--" + lim + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify({ name: ARCHIVO, parents: ["appDataFolder"] }) + "\r\n--" + lim + "\r\nContent-Type: application/json\r\n\r\n" + cuerpo + "\r\n--" + lim + "--";
+      const multi = "--" + lim + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify({ name: ARCHIVO, mimeType: "application/json" }) + "\r\n--" + lim + "\r\nContent-Type: application/json\r\n\r\n" + cuerpo + "\r\n--" + lim + "--";
       idArchivo = (await (await gfetch(SUBIR + "?uploadType=multipart&fields=id", { method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + lim }, body: multi })).json()).id;
     };
-    /* El libro de Drive se cifró en otro equipo con otra sal: se pide la contraseña y este navegador adopta esa clave. */
-    const abrirConClave = (remoto) => new Promise((ok) => {
-      dForm.hidden = false; dEstado.hidden = false;
-      dEstado.textContent = "Hay un libro guardado en tu Drive desde otro equipo. Escribe la contraseña con la que lo creaste para unirlo con este.";
-      $("drive-clave").focus();
-      dForm.onsubmit = async (ev) => {
-        ev.preventDefault();
-        try {
-          const k = await derivar($("drive-clave").value, b64d(remoto.sal), remoto.iter || ITER), datos = await descifrar(k, remoto);
-          const lista = leerUsuarios(); lista[sesion.usuario] = Object.assign({}, lista[sesion.usuario], { sal: remoto.sal, iter: remoto.iter || ITER });
-          localStorage.setItem(LS_USUARIOS, JSON.stringify(lista));
-          sesion.clave = k;
-          crypto.subtle.exportKey("jwk", k).then((jwk) => { try { sessionStorage.setItem(SS_SESION, JSON.stringify({ u: sesion.usuario, k: jwk })); } catch (e) {} }).catch(() => {});
-          $("drive-clave").value = ""; dForm.hidden = true; ok(datos);
-        } catch (e) { dEstado.textContent = "Esa contraseña no abre el libro guardado en Drive. Prueba con la que usaste en el equipo donde lo creaste."; $("drive-clave").select(); }
-      };
-    });
-    async function sincronizarDrive() {
-      if (!conDrive || !sesion) return;
-      if (enDrive) { otraVez = true; return; }
-      enDrive = true; dEstado.hidden = false;
+    const expirar = () => {
+      token = ""; boton.textContent = "Conectar Google"; dEstado.hidden = false;
+      dEstado.textContent = "La conexión con Google expiró. Los cambios quedan en este navegador hasta que vuelvas a conectar.";
+      alerta("La conexión con Google expiró: tu libro no se está guardando en Drive. Conéctate para seguir guardando.");
+    };
+    async function sincronizarDrive(forzar) {
+      if (!conDrive || !conectado()) return;
+      if (enDrive) { otraVez = true; forzarOtra = forzarOtra || !!forzar; return; }
+      enDrive = true; dEstado.hidden = false; dBoton.disabled = true;
       try {
         do {
-          otraVez = false;
-          const remoto = await bajar(), u = leerUsuarios()[sesion.usuario] || {};
-          let datosR = null;
-          if (remoto && remoto.ct) datosR = remoto.sal === u.sal ? await descifrar(sesion.clave, remoto).catch(() => null) : null;
-          if (remoto && remoto.ct && !datosR) datosR = await abrirConClave(remoto);
-          const local = store.volcar(), unido = datosR ? fusionar(local, datosR) : fusionar(local, {});
-          const canon = (d) => JSON.stringify(fusionar(d, {}));
-          if (datosR && canon(unido) !== canon(local)) store.cargar(unido); else if (dForm.hidden === true && datosR && remoto.sal !== u.sal) store.cargar(unido);
-          if (!datosR || canon(unido) !== canon(datosR)) { const yo = leerUsuarios()[sesion.usuario] || {}; await subir(Object.assign({ v: 1, sal: yo.sal, iter: yo.iter || ITER, actualizado: new Date().toISOString() }, await cifrar(sesion.clave, unido))); }
+          const f = !!forzar || forzarOtra; otraVez = false; forzarOtra = false; forzar = false;
+          const remoto = await bajar(), local = store.volcar(), unido = fusionar(local, remoto || {}), canon = (d) => JSON.stringify(fusionar(d, {}));
+          if (remoto && canon(unido) !== canon(local)) store.cargar(unido);
+          if (f || !remoto || canon(unido) !== canon(remoto)) await subir(unido);
         } while (otraVez);
-        dEstado.textContent = "Libro guardado en tu Google Drive · " + new Date().toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+        pendiente = false; usoDrive = true; try { localStorage.setItem(LS_DRIVE, "1"); } catch (e) {}
+        dEstado.textContent = "Guardado en tu Google Drive, archivo " + ARCHIVO + " · " + hora();
       } catch (e) {
-        if (e && e.g === "sesion") { token = ""; boton.textContent = "Conectar Google"; dEstado.textContent = "La sesión de Google venció: los cambios quedan en este navegador. Pulsa Conectar Google para volver a guardar en Drive."; }
+        if (e && e.g === "sesion") expirar();
         else if (e && e.g === "permiso") dEstado.textContent = "Google no permitió usar Drive. Revisa que la API de Google Drive esté activada en tu proyecto de Google Cloud.";
-        else dEstado.textContent = "No se pudo guardar en Drive ahora. Los cambios quedan en este navegador y se reintentará.";
+        else if (e && e.g === "archivo") dEstado.textContent = "El archivo " + ARCHIVO + " de tu Drive no se pudo leer (¿fue editado a mano?). No se sobrescribió. Corrígelo o bórralo de Drive y pulsa Respaldo Drive para crear uno nuevo.";
+        else dEstado.textContent = "No se pudo guardar en Drive ahora. Los cambios quedan en este navegador; pulsa Respaldo Drive para reintentar.";
       }
-      enDrive = false;
+      enDrive = false; dBoton.disabled = false;
     }
-    store.alCambiar = () => { if (!conDrive || !token || Date.now() >= vence) return; clearTimeout(reloj); reloj = setTimeout(sincronizarDrive, 3000); };
-    const todo = async () => { await sincronizarDrive(); if (conGmail) await sincronizar(); else estado.textContent = "Conectado sin permiso de Gmail: los comprobantes no se leerán. Pulsa Conectar Google y marca el permiso de lectura de correo."; };
-    boton.onclick = () => {
-      if (token && Date.now() < vence) { todo(); return; }
-      if (!(window.google && window.google.accounts && window.google.accounts.oauth2)) { estado.textContent = "No se pudo cargar el inicio de sesión de Google. Revisa tu conexión o desactiva el bloqueador de anuncios e inténtalo de nuevo."; return; }
+    store.alCambiar = () => {
+      if (conDrive && conectado()) { clearTimeout(reloj); reloj = setTimeout(() => sincronizarDrive(false), 1000); return; }
+      if (usoDrive && !pendiente) { pendiente = true; alerta("Hay cambios que todavía no están en tu Drive porque no estás conectado a Google. Conéctate para guardarlos."); }
+    };
+    const todo = async () => { await sincronizarDrive(false); if (conGmail) await sincronizar(); else estado.textContent = "Conectado sin permiso de Gmail: los comprobantes no se leerán. Pulsa Conectar Google y marca el permiso de lectura de correo."; };
+    function conectar(auto) {
+      if (!(window.google && window.google.accounts && window.google.accounts.oauth2)) { if (!auto) estado.textContent = "No se pudo cargar el inicio de sesión de Google. Revisa tu conexión o desactiva el bloqueador de anuncios e inténtalo de nuevo."; return; }
       if (!cliente) cliente = window.google.accounts.oauth2.initTokenClient({
         client_id: cid, scope: ALC_GMAIL + " " + ALC_DRIVE,
         callback: (r) => {
           if (r && r.access_token) {
             const tiene = (a) => { try { return window.google.accounts.oauth2.hasGrantedAllScopes(r, a); } catch (e) { return String(r.scope || "").indexOf(a) > -1; } };
-            token = r.access_token; vence = Date.now() + ((Number(r.expires_in) || 3600) - 60) * 1000; conGmail = tiene(ALC_GMAIL); conDrive = tiene(ALC_DRIVE);
-            boton.textContent = "Sincronizar";
-            if (!conDrive) { dEstado.hidden = false; dEstado.textContent = "Conectado sin permiso de Drive: el libro se guarda solo en este navegador. Pulsa Conectar Google y marca el permiso de Drive para guardarlo en la nube."; }
+            const dura = (Number(r.expires_in) || 3600) - 60;
+            token = r.access_token; vence = Date.now() + dura * 1000; conGmail = tiene(ALC_GMAIL); conDrive = tiene(ALC_DRIVE);
+            clearTimeout(relojVence); relojVence = setTimeout(expirar, dura * 1000);
+            boton.textContent = "Sincronizar"; alerta("");
+            if (!conDrive) { dEstado.hidden = false; dEstado.textContent = "Conectado sin permiso de Drive: el libro se guarda solo en este navegador. Pulsa Conectar Google y marca el permiso de Drive."; }
             todo();
           } else estado.textContent = "No se conectó Google porque no se dieron los permisos.";
         },
-        error_callback: () => { estado.textContent = "Se cerró la ventana de Google antes de terminar. Pulsa Conectar Google para intentarlo de nuevo."; }
+        error_callback: () => {
+          if (cliente.auto) alerta("Conéctate a Google para traer la última versión de tu libro desde Drive. Mientras tanto ves lo guardado en este navegador.");
+          else estado.textContent = "Se cerró la ventana de Google antes de terminar. Pulsa Conectar Google para intentarlo de nuevo.";
+        }
       });
+      cliente.auto = !!auto;
       cliente.requestAccessToken({ prompt: "" });
-    };
+    }
+    boton.onclick = () => { if (conectado()) todo(); else conectar(false); };
+    dBoton.hidden = false;
+    dBoton.onclick = () => { if (conectado() && conDrive) sincronizarDrive(true); else conectar(false); };
+    /* Al abrir: si este usuario ya usó Drive, intenta reconectar solo para traer la última versión. */
+    if (usoDrive) gsi.onload = () => { try { conectar(true); } catch (e) { alerta("Conéctate a Google para traer la última versión de tu libro desde Drive."); } };
   }
 
   /* ---------- acceso con usuario y contraseña (solo fuera de Claude) ----------

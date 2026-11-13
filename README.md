@@ -25,13 +25,19 @@ La contraseña protege los datos, no la página: cualquiera puede abrir la direc
 ## Dónde quedan los datos
 
 - **En el navegador de cada computador**, cifrados con tu contraseña.
-- **En tu Google Drive (opcional):** al pulsar **Conectar Google**, el mismo libro cifrado se guarda en la carpeta privada que Drive reserva para esta aplicación. No aparece entre tus archivos y ninguna otra aplicación puede leerlo. Con eso, el libro se sincroniza entre los equipos donde conectes la misma cuenta de Google.
+- **En tu Google Drive (opcional):** al conectar Google, el libro se guarda en "Mi unidad", en un archivo llamado `Libro_de_cuentas`. Es un archivo de datos legible (formato JSON), sin cifrar: quien tenga acceso a tu Drive puede leerlo.
 
-Ni Google ni este repositorio pueden leer el contenido: sale cifrado del navegador. En un equipo nuevo, crea tu usuario, conecta Google y escribe la contraseña con la que creaste el libro para unirlo.
+Cómo funciona el guardado en Drive:
 
-Si editas el mismo libro en dos equipos, se conserva la versión más reciente de cada movimiento y lo borrado en uno se borra en el otro.
+- **Automático:** cada alta, edición o borrado se sube solo, alrededor de un segundo después.
+- **Botón "Respaldo Drive":** guarda en el momento, además del guardado automático.
+- **Al abrir la aplicación:** intenta reconectar con Google y traer la última versión. Si el navegador bloquea ese intento, muestra un aviso con el botón para conectar.
+- **Si la conexión expira** (dura una hora) o hay cambios sin subir, aparece una alerta. Los cambios quedan en el navegador y se suben al reconectar.
+- **Entre equipos:** se une lo de Drive con lo del navegador; de cada movimiento se conserva la versión más reciente, y lo borrado en un equipo se borra en el otro.
 
-Además puedes usar **Respaldo → Exportar** e **Importar**. El archivo de respaldo no va cifrado: guárdalo en un lugar seguro.
+La aplicación solo puede ver el archivo que ella misma creó. Si subes a mano otro archivo con el mismo nombre, no lo leerá. Si editas el archivo a mano y queda dañado, la aplicación avisa y no lo sobrescribe.
+
+Además puedes usar **Respaldo → Exportar** e **Importar** para guardar una copia en un archivo aparte.
 
 ## Publicar con GitHub Pages
 
@@ -53,7 +59,7 @@ El guardado en Drive y la lectura de Gmail necesitan un identificador de cliente
 5. **APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth**: tipo **Aplicación web**. En **Orígenes de JavaScript autorizados** agrega `https://ealamosalas.github.io` (solo el dominio, sin la ruta del repositorio ni barra final).
 6. Copia el ID de cliente (termina en `.apps.googleusercontent.com`) y pégalo en `config.js`, en `googleClientId`.
 
-En la hoja Movimientos aparecerá el botón **Conectar Google**. Pide dos permisos: leer tu correo (solo lectura) y guardar datos propios de la aplicación en tu Drive (no da acceso a tus demás archivos). Google mostrará el aviso "Google no ha verificado esta aplicación": es normal en modo de prueba; elige *Continuar*. El permiso dura una hora, así que en cada sesión hay que pulsar el botón de nuevo. Mientras no esté conectado, los cambios quedan en el navegador y se suben en la siguiente conexión.
+En la hoja Movimientos aparecerá el botón **Conectar Google**. Pide dos permisos: leer tu correo (solo lectura) y ver y administrar los archivos de Drive que esta aplicación creó (no da acceso a tus demás archivos). Google mostrará el aviso "Google no ha verificado esta aplicación": es normal en modo de prueba; elige *Continuar*. El permiso dura una hora, así que en cada sesión hay que pulsar el botón de nuevo. Mientras no esté conectado, los cambios quedan en el navegador y se suben en la siguiente conexión.
 
 Solo se importan correos desde el 1 de septiembre de 2026.
 
